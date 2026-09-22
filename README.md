@@ -39,12 +39,37 @@ the proxymock MCP server into your agent.
 | [`install-speedscale`](skills/install-speedscale/SKILL.md) | End-to-end install: CLIs, prerequisites, API key, operator Helm chart, verification, MCP wiring, upgrades, uninstall |
 | [`improve-mock-match-rate`](skills/improve-mock-match-rate/SKILL.md) | Pull a replay report and tune mock blueprints until the projected match rate stops improving |
 
+### proxymock quality loop
+
+Skills for testing a service with recorded traffic and no Speedscale Cloud
+account. They were developed in [mock-lab](https://github.com/speedscale/mock-lab)
+and their examples use its committed fixture, `lab/proxymock/recording`, so
+paths like that are relative to a mock-lab checkout. The `prove-*.sh` scripts
+need `MOCK_LAB_DIR` pointing at one. They assume proxymock v2.5.814 or newer;
+`skills/quality-loop/scripts/quality-loop.sh doctor` warns if yours is older.
+Not sure which applies? Start with `quality-loop`: it routes an intent to the
+right command.
+
+| Skill | What it does | Wraps |
+| --- | --- | --- |
+| [`quality-loop`](skills/quality-loop/SKILL.md) | The entry point: route an intent to the right native command or analysis skill, with the setup playbook, blueprint rules, gotcha catalog, and a `doctor` | builds and execs the native commands |
+| [`proxymock-regression-test`](skills/proxymock-regression-test/SKILL.md) | Replay a recording at a target and gate on the per-RRPair verdict (status and body) against a known-good baseline | `proxymock replay --baseline --fail-on-new-mismatch` |
+| [`proxymock-verify-fix`](skills/proxymock-verify-fix/SKILL.md) | Prove a bug fix by replaying the incident capture at the fixed build | `proxymock replay --verify-fix` |
+| [`proxymock-contract-test`](skills/proxymock-contract-test/SKILL.md) | Check recorded or replayed traffic against an OpenAPI spec; mock a dependency straight from its spec | `proxymock validate`, `proxymock generate` |
+| [`proxymock-chaos-mock`](skills/proxymock-chaos-mock/SKILL.md) | Inject faults into a mock: 503s, 429s with `Retry-After`, corrupt bodies, latency, connection faults, exact ratios | `proxymock mock --fault` |
+| [`proxymock-load-test`](skills/proxymock-load-test/SKILL.md) | Replay at a target with parallel virtual users; latency percentiles, throughput, match rate, `--fail-if` SLO gates | `proxymock replay --vus --for --fail-if` |
+| [`proxymock-perf-container`](skills/proxymock-perf-container/SKILL.md) | Load-test one service with its downstream mocked, and judge the number honestly | `proxymock replay --vus --for --load-test` |
+| [`proxymock-compare-results`](skills/proxymock-compare-results/SKILL.md) | Deep before/after comparison of two replay or recording sets; JSON, HTML, and an LLM digest | `proxymock report --baseline`, `proxymock drift` |
+| [`proxymock-summarize-recording`](skills/proxymock-summarize-recording/SKILL.md) | Summarize a recording: hosts, endpoints, methods, status mix, volume | `proxymock report --format prompt` |
+| [`proxymock-replay-tuning`](skills/proxymock-replay-tuning/SKILL.md) | Replay outbound pairs against a local mock and report HIT/MISS/PASSTHROUGH to restore a stale mock set | `tune-proxymock-replay.sh` |
+
 ## How this repo is maintained
 
-`skills/` is mirrored from the Speedscale monorepo on every proxymock
-release (`proxymock mcp skills export`), so the files here always match what
-the shipped binary installs. Fixes are welcome as pull requests; they are
-applied upstream and flow back on the next release.
+`install-speedscale` and `improve-mock-match-rate` are mirrored from the
+Speedscale monorepo on every proxymock release (`proxymock mcp skills export`),
+so they always match what the shipped binary installs; fixes to those two are
+applied upstream and flow back on the next release. The quality-loop skills are
+maintained here directly, so pull requests against them merge as-is.
 
 Docs: https://docs.speedscale.com · Community: https://slack.speedscale.com ·
 Support: support@speedscale.com
