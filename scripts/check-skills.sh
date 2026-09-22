@@ -10,10 +10,13 @@ for dir in skills/*/; do
   [ -f "$f" ] || { echo "FAIL $name: missing SKILL.md"; status=1; continue; }
   head -n1 "$f" | grep -q '^---$' || { echo "FAIL $name: no frontmatter"; status=1; }
   grep -q "^name: $name\$" "$f" || { echo "FAIL $name: frontmatter name does not match directory"; status=1; }
-  grep -q '^description: .\{20,\}' "$f" || { echo "FAIL $name: description missing or too short"; status=1; }
+  # description may be a one-liner or a YAML block scalar (">" / "|") continued on the next lines
+  awk 'BEGIN{ok=0} /^---$/{fm++; next} fm==1 && /^description: *[>|]/{blk=1; next} fm==1 && blk && /^  ./{ok=1} fm==1 && /^description: .{20,}/{ok=1} END{exit ok?0:1}' "$f" \
+    || { echo "FAIL $name: description missing or too short"; status=1; }
   for s in "$dir"scripts/*.sh; do
     [ -e "$s" ] || continue
-    sh -n "$s" || { echo "FAIL $name: $s does not parse"; status=1; }
+    # parse with the interpreter the script declares; bash scripts use process substitution
+    if head -n1 "$s" | grep -q bash; then bash -n "$s"; else sh -n "$s"; fi || { echo "FAIL $name: $s does not parse"; status=1; }
     [ -x "$s" ] || { echo "FAIL $name: $s is not executable"; status=1; }
   done
   echo "ok   $name"
