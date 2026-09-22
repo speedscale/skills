@@ -1,0 +1,26 @@
+{
+  "name": "speedscale-skills",
+  "owner": {
+    "name": "Speedscale",
+    "email": "support@speedscale.com",
+    "url": "https://speedscale.com"
+  },
+  "metadata": {
+    "description": "Skills for installing, tuning, and verifying Speedscale and proxymock with an AI coding agent",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "speedscale",
+      "source": "./",
+      "description": "Install Speedscale end to end (CLIs, operator Helm chart, MCP wiring) and tune proxymock mock match rates",
+      "version": "0.1.0",
+      "category": "devops",
+      "tags": ["speedscale", "proxymock", "kubernetes", "helm", "mocking", "traffic-replay"],
+      "skills": [
+        "./skills/install-speedscale",
+        "./skills/improve-mock-match-rate"
+      ]
+    }
+  ]
+}
