@@ -25,10 +25,10 @@ the proxymock MCP server into your agent.
 
 ## ChatGPT desktop app
 
-Open the ChatGPT desktop app, select Codex, and open your project's folder. Paste this prompt to install the skill:
+Open the ChatGPT desktop app, select Codex, and open your project's folder. The source is the [install-speedscale skill](https://github.com/speedscale/skills/tree/main/skills/install-speedscale). Paste this prompt to install it:
 
 ```text
-Use $skill-installer to install the install-speedscale skill from https://github.com/speedscale/skills/tree/main/skills/install-speedscale.
+Use $skill-installer to install skills/install-speedscale from the speedscale/skills GitHub repository.
 ```
 
 In your next message, ask Codex to use it:
