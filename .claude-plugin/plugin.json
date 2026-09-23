@@ -1,6 +1,6 @@
 {
   "name": "speedscale",
-  "description": "Install Speedscale end to end (CLIs, operator Helm chart, MCP wiring) and tune proxymock mock match rates",
+  "description": "Install Speedscale end to end (CLIs, operator Helm chart, MCP wiring), analyze replay reports, and tune proxymock mock match rates",
   "version": "0.1.0",
   "author": { "name": "Speedscale", "email": "support@speedscale.com" },
   "homepage": "https://docs.speedscale.com",
