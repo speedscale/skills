@@ -23,6 +23,24 @@ installs the Speedscale Operator with values chosen for your platform
 (EKS, GKE, AKS, minikube, kind, OpenShift), verifies the result, and wires
 the proxymock MCP server into your agent.
 
+## ChatGPT desktop app
+
+Open the ChatGPT desktop app, select Codex, and open your project's folder. Paste this prompt to install the skill:
+
+```text
+Use $skill-installer to install the install-speedscale skill from https://github.com/speedscale/skills/tree/main/skills/install-speedscale.
+```
+
+In your next message, ask Codex to use it:
+
+```text
+Use $install-speedscale to set up Speedscale for my project. Check what is already installed and tell me which components I need. Ask before changing a Kubernetes cluster. Never print my API key.
+```
+
+If the new skill does not appear, restart the app. You can also use `$install-speedscale` later for an upgrade or repair.
+
+ChatGPT on the web and mobile cannot install these skills directly from a GitHub URL. Those surfaces can use them after Speedscale publishes a plugin in ChatGPT's plugin directory.
+
 ## Other ways to get the skills
 
 | Route | Command |
