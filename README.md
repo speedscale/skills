@@ -37,6 +37,7 @@ the proxymock MCP server into your agent.
 | Skill | What it does |
 | --- | --- |
 | [`install-speedscale`](skills/install-speedscale/SKILL.md) | End-to-end install: CLIs, prerequisites, API key, operator Helm chart, verification, MCP wiring, upgrades, uninstall |
+| [`analyze-replay-report`](skills/analyze-replay-report/SKILL.md) | Explain a cloud report or a local proxymock replay run: verdict, the first failing response, root-cause bucket, and next steps |
 | [`improve-mock-match-rate`](skills/improve-mock-match-rate/SKILL.md) | Pull a replay report and tune mock blueprints until the projected match rate stops improving |
 
 ### proxymock quality loop
