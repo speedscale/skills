@@ -48,8 +48,12 @@ namespace that looks like production.
 
 Scripts (in this skill's `scripts/`):
 
-- `score.sh <run>`: one JSON scoreboard for a local replay directory or a
-  pulled report ID. Uses `proxymock replay score` when available.
+- `score.sh <run> [--mock-run <dir>]`: one JSON scoreboard for a local
+  replay directory or a pulled report ID. Uses `proxymock replay score` when
+  available. For a local run it pairs the replay with the mock run that
+  served it (the latest `mocked-*` started no later than the replay); pass
+  `--mock-run` when you ran the mock under another name, and treat a `GUESS`
+  note as unverified.
 - `checkpoint.sh save|restore|list <workspace> <label>`: snapshot and restore
   `proxymock/blueprints` and `proxymock/testconfigs`, the only state tuning
   changes.

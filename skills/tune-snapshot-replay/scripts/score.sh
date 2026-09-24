@@ -3,7 +3,11 @@
 # object: accuracy (did replayed responses match the recorded ones) and
 # matchRate (did the mocks answer the app's outbound calls), plus goals.
 #
-#   score.sh <local-replay-dir | pulled-report-id> [--workspace <dir>]
+#   score.sh <local-replay-dir | pulled-report-id> [--workspace <dir>] [--mock-run <dir>]
+#
+# For a local run the mock server output that served the replay is the latest
+# mocked-* run that started no later than the replay (by the timestamp in the
+# directory names). Pass --mock-run when that is ambiguous.
 #
 # Uses `proxymock replay score` when the installed proxymock has it, and
 # otherwise computes the same headline numbers from the files on disk:
@@ -18,9 +22,11 @@ INPUT="${1:-}"
 [ -n "$INPUT" ] || { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 shift
 WORKSPACE="."
+MOCK_RUN=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --workspace) WORKSPACE="$2"; shift 2 ;;
+    --mock-run) MOCK_RUN="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -31,6 +37,9 @@ command -v jq >/dev/null || { echo "jq is required" >&2; exit 2; }
 # the score subcommand `replay score --help` still succeeds and prints the
 # replay help. Require the score command's own usage line before using it.
 if proxymock replay score --help 2>/dev/null | grep -q 'proxymock replay score'; then
+  if [ -n "$MOCK_RUN" ] && proxymock replay score --help 2>/dev/null | grep -q -- '--mock-run'; then
+    exec proxymock replay score "$INPUT" --in "$WORKSPACE" --mock-run "$MOCK_RUN" -o json
+  fi
   exec proxymock replay score "$INPUT" --in "$WORKSPACE" -o json
 fi
 
@@ -56,13 +65,35 @@ match_rate_json() {
 
 if [ -f "$INPUT/replay-verdict.json" ]; then
   VERDICT="$INPUT/replay-verdict.json"
-  mocked=$(find "$(dirname "$INPUT")" "$WORKSPACE/proxymock" -maxdepth 1 -type d -name 'mocked-*' 2>/dev/null | sort | tail -1)
+  pairing=""
+  if [ -n "$MOCK_RUN" ]; then
+    mocked="$MOCK_RUN"
+    pairing="given with --mock-run"
+  else
+    # Names carry a sortable timestamp (mocked-2026-09-24_10-00-00Z); the run
+    # that served this replay is the latest one started no later than it.
+    runs=$(find "$(dirname "$INPUT")" "$WORKSPACE/proxymock" -maxdepth 1 -type d -name 'mocked-*' 2>/dev/null \
+      | awk -F/ '!seen[$NF]++ {print $NF"\t"$0}' | sort | cut -f2-)
+    rts=$(basename "$INPUT" | sed -n 's/^replayed-\([0-9].*\)$/\1/p')
+    mocked=""
+    if [ -n "$rts" ]; then
+      mocked=$(printf '%s\n' "$runs" | awk -F/ -v r="mocked-$rts" 'NF && $NF <= r' | tail -1)
+      if [ -n "$mocked" ]; then
+        pairing="latest mocked-* run started no later than the replay"
+      elif [ -n "$(printf '%s' "$runs" | tr -d '[:space:]')" ]; then
+        NO_MOCK_NOTE="no mocked-* run started before this replay, so it probably ran without the mock server; pass --mock-run if one served it"
+      fi
+    else
+      mocked=$(printf '%s\n' "$runs" | awk 'NF' | tail -1)
+      [ -n "$mocked" ] && pairing="GUESS: newest mocked-* run (the replay directory name has no timestamp to pair on); pass --mock-run to be sure"
+    fi
+  fi
   if [ -n "$mocked" ]; then
-    match=$(mock_counts "$mocked" | match_rate_json "$mocked")
+    match=$(mock_counts "$mocked" | match_rate_json "$mocked" | jq --arg p "$pairing" '. + {pairing: $p}')
   else
     match=null
   fi
-  jq --argjson matchRate "$match" --arg source "$VERDICT" '
+  jq --argjson matchRate "$match" --arg source "$VERDICT" --arg noMockNote "${NO_MOCK_NOTE:-}" '
     (.summary.pairs // 0) as $pairs | (.summary.mismatches // 0) as $mm
     | {kind: "local",
        accuracy: {pairs: $pairs, matched: ($pairs - $mm), mismatches: $mm,
@@ -79,7 +110,9 @@ if [ -f "$INPUT/replay-verdict.json" ]; then
                   passed: ([.goals.goals[]? | select(.status == "pass")] | length),
                   failed: ([.goals.goals[]? | select(.status == "fail")] | length),
                   goals: [.goals.goals[]? | {name, metric, condition, observed, status}]} end),
-       notes: (if $matchRate == null then ["no mocked-* run found, so the mock match rate is unknown"] else [] end)}' "$VERDICT"
+       notes: (if $matchRate == null and $noMockNote != "" then [$noMockNote]
+               elif $matchRate == null then ["no mocked-* run found, so the mock match rate is unknown"]
+               elif ($matchRate.pairing | startswith("GUESS")) then [$matchRate.pairing] else [] end)}' "$VERDICT"
   exit 0
 fi
 
