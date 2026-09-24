@@ -97,21 +97,35 @@ if [ -s "$RPT_DIR/matches.grpc.jsonl" ]; then
 else
   match=null
 fi
-# Replayed pairs carry tags.source == "generator" and share tags.file and
-# tags.sequence with the recorded pair they replay. Load replays keep only a
-# sample, so this is a status-only estimate over whatever pairs are present.
+# Replayed pairs carry tags.source == "generator" and tags.refUuid, which is
+# the uuid of the recorded pair they replay. The recorded uuid is base64 bytes
+# in JSON, so convert it before joining. (tags.file is empty in reports and
+# tags.sequence collides across capture pods, so neither is a safe key.) Load
+# replays keep only a sample, so this is a status-only figure over the pairs
+# present; replayed pairs with no recorded match are counted, not guessed.
+B64UUID='def b64uuid:
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" as $a
+  | [explode[] | select(. != 61) | [.] | implode as $c | $a | index($c)]
+  | [range(0; length; 4) as $i | .[$i:$i+4]]
+  | map((.[0] * 262144 + (.[1] // 0) * 4096 + (.[2] // 0) * 64 + (.[3] // 0)) as $n
+        | [($n / 65536 | floor), (($n / 256 | floor) % 256), ($n % 256)])
+  | flatten | .[0:16]
+  | map("0123456789abcdef" as $h | $h[(. / 16 | floor):(. / 16 | floor) + 1] + $h[(. % 16):(. % 16) + 1])
+  | join("")
+  | "\(.[0:8])-\(.[8:12])-\(.[12:16])-\(.[16:20])-\(.[20:32])";'
 pairs=null
 if [ -s "$RPT_DIR/generator-pairs.jsonl" ]; then
-  pairs=$(jq -s -c '
-    group_by([.tags.file, .tags.sequence])
-    | map({recorded: (map(select(.tags.source != "generator")) | .[0]),
-           replayed: map(select(.tags.source == "generator"))})
-    | map(select(.recorded != null) | . as $g | .replayed[]
-          | {method: (.http.req.method // .command), endpoint: .location,
-             ok: ((.http.res.statusCode // .status) == ($g.recorded.http.res.statusCode // $g.recorded.status))})
-    | {pairs: length, matched: (map(select(.ok)) | length),
-       statusMismatches: (map(select(.ok | not)) | length),
-       topFailingEndpoints: (map(select(.ok | not) | {method, endpoint}) | group_by([.method, .endpoint])
+  pairs=$(jq -s -c "$B64UUID"'
+    (map(select(.tags.source != "generator" and .uuid != null)) | map({key: (.uuid | b64uuid), value: .}) | from_entries) as $orig
+    | map(select(.tags.source == "generator")
+          | $orig[.tags.refUuid // ""] as $o
+          | {method: (.http.req.method // .command), endpoint: .location, joined: ($o != null),
+             ok: ($o != null and ((.http.res.statusCode // .status) == ($o.http.res.statusCode // $o.status)))})
+    | map(select(.joined)) as $j
+    | {pairs: ($j | length), matched: ($j | map(select(.ok)) | length),
+       statusMismatches: ($j | map(select(.ok | not)) | length),
+       unjoined: (map(select(.joined | not)) | length),
+       topFailingEndpoints: ($j | map(select(.ok | not) | {method, endpoint}) | group_by([.method, .endpoint])
                              | map(.[0] + {failures: length}) | sort_by(-.failures) | .[0:5])}' "$RPT_DIR/generator-pairs.jsonl")
 fi
 jq --argjson matchRate "$match" --argjson pairs "$pairs" --arg source "$RPT_DIR.json" \
@@ -130,4 +144,5 @@ jq --argjson matchRate "$match" --argjson pairs "$pairs" --arg source "$RPT_DIR.
               passed: (map(select(.status == "pass")) | length),
               failed: (map(select(.status == "fail")) | length),
               goals: .}),
-   notes: (if $matchRate == null then ["the report has no mock match data (no responder, or an older report)"] else [] end)}' "$RPT_DIR.json"
+   notes: ((if $matchRate == null then ["the report has no mock match data (no responder, or an older report)"] else [] end)
+           + (if ($pairs.unjoined // 0) > 0 then ["\($pairs.unjoined) replayed pairs had no recorded pair with a matching uuid and are not scored"] else [] end))}' "$RPT_DIR.json"
