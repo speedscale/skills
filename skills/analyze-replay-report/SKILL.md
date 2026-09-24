@@ -109,15 +109,26 @@ compressed). State in one sentence what the error says before moving on.
 
 No 4xx/5xx does not mean nothing failed. A 201 recorded and 200 replayed is a
 failure too. `generator-pairs.jsonl` holds both sides: replayed pairs have
-`tags.source == "generator"`, and each shares `tags.file` and `tags.sequence`
-with the recorded pair it replays. List the status mismatches, oldest first:
+`tags.source == "generator"`, and each carries `tags.refUuid`, the `uuid` of the
+recorded pair it replays. The recorded `uuid` is stored as base64 bytes, so
+convert it before joining. Do not join on `tags.file` or `tags.sequence`:
+`file` is empty in reports, and sequences collide when the snapshot came from
+more than one pod. List the status mismatches, oldest first:
 
 ```bash
-jq -s -c 'group_by([.tags.file, .tags.sequence])
-  | map({recorded: (map(select(.tags.source != "generator")) | .[0]), replayed: map(select(.tags.source == "generator"))})
-  | map(select(.recorded != null) | . as $g | .replayed[]
-      | select(.http.res.statusCode != $g.recorded.http.res.statusCode)
-      | {ts, method: .http.req.method, location, recorded: $g.recorded.http.res.statusCode, replayed: .http.res.statusCode})
+jq -s -c 'def b64uuid:
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" as $a
+    | [explode[] | select(. != 61) | [.] | implode as $c | $a | index($c)]
+    | [range(0; length; 4) as $i | .[$i:$i+4]]
+    | map((.[0] * 262144 + (.[1] // 0) * 4096 + (.[2] // 0) * 64 + (.[3] // 0)) as $n
+          | [($n / 65536 | floor), (($n / 256 | floor) % 256), ($n % 256)])
+    | flatten | .[0:16]
+    | map("0123456789abcdef" as $h | $h[(. / 16 | floor):(. / 16 | floor) + 1] + $h[(. % 16):(. % 16) + 1])
+    | join("") | "\(.[0:8])-\(.[8:12])-\(.[12:16])-\(.[16:20])-\(.[20:32])";
+  (map(select(.tags.source != "generator" and .uuid != null)) | map({key: (.uuid | b64uuid), value: .}) | from_entries) as $orig
+  | map(select(.tags.source == "generator") | $orig[.tags.refUuid // ""] as $r | select($r != null)
+      | select(.http.res.statusCode != $r.http.res.statusCode)
+      | {ts, method: .http.req.method, location, recorded: $r.http.res.statusCode, replayed: .http.res.statusCode})
   | sort_by(.ts) | .[0:10][]' "$RPT_DIR/generator-pairs.jsonl"
 ```
 
