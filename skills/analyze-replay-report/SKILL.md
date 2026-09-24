@@ -45,24 +45,38 @@ passwords, or personal data back to the user verbatim; summarize them.
 
 ### 1. Pull it
 
-Run from the user's proxymock workspace (the repo root, or wherever they keep
-`proxymock/`):
+Start from the directory containing `proxymock/`, or from `proxymock/` itself. Use the same workspace root for the pull and all report paths:
 
 ```bash
-proxymock cloud pull report <report-id>
+WORKSPACE_ROOT=$PWD
+[ "$(basename "$WORKSPACE_ROOT")" = proxymock ] && WORKSPACE_ROOT=$(dirname "$WORKSPACE_ROOT")
+(cd "$WORKSPACE_ROOT" && proxymock cloud pull report <report-id>)
 ```
 
 That gives you two trees:
 
-- `RPT_DIR=${SPEEDSCALE_HOME:-$HOME/.speedscale}/data/reports/<report-id>`:
-  the raw artifacts, plus metadata at `$RPT_DIR.json`.
-- `proxymock/report-<report-id>/`: one markdown file per request, with mock
-  match status, browsable with `proxymock web`. The source
-  snapshot lands next to it as `proxymock/snapshot-<id>/` when it still exists.
+- `RPT_DIR`: the raw artifacts, plus metadata at `$RPT_DIR.json`. Current proxymock keeps them in the workspace; older versions used the Speedscale home directory. Take whichever exists:
+
+  ```bash
+  RPT_DIR="$WORKSPACE_ROOT/proxymock/reports/<report-id>"
+  [ -f "$RPT_DIR.json" ] || RPT_DIR="${SPEEDSCALE_HOME:-$HOME/.speedscale}/data/reports/<report-id>"
+  ```
+
+- `$WORKSPACE_ROOT/proxymock/report-<report-id>/`: one markdown file per request, with mock match status, browsable with `proxymock web`. The source snapshot lands next to it as `$WORKSPACE_ROOT/proxymock/snapshot-<id>/` when it still exists.
 
 If the pull fails with an auth or tenant error, the report probably belongs to
 a different Speedscale tenant than the CLI is signed in to. Say so; do not
 retry with other credentials.
+
+If it fails with `all N RRPairs failed markdown conversion`, the artifacts in
+`$RPT_DIR` still downloaded; only the markdown tree and the snapshot are
+missing. Older proxymock stops there on reports whose mocks were Postgres,
+MySQL, Kafka or AMQP. Carry on from `$RPT_DIR`, and pull the snapshot on its
+own if you need the recorded side:
+
+```bash
+proxymock cloud pull snapshot "$(jq -r .scenario.id "$RPT_DIR.json")"
+```
 
 ### 2. Read the verdict
 
