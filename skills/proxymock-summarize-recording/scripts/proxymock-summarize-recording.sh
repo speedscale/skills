@@ -122,10 +122,11 @@ for path in sorted(root.rglob("*")):
         rr = load_rr(path)
     except Exception:
         continue
-    req = rr.get("http", {}).get("req", {})
-    res = rr.get("http", {}).get("res", {})
-    if not req and not res:
+    if not isinstance(rr, dict) or not (rr.get("http") or rr.get("l7protocol") or rr.get("direction")):
         continue
+    http = rr.get("http") or {}
+    req = http.get("req") or {}
+    res = http.get("res") or {}
     total += 1
     direction = rr.get("direction") or "?"
     by_direction[direction] += 1
@@ -142,10 +143,10 @@ for path in sorted(root.rglob("*")):
     if isinstance(code, int) and code:
         status[code] += 1
         status_class[f"{code // 100}xx"] += 1
-    method = req.get("method") or rr.get("command") or "?"
+    method = req.get("method") or str(rr.get("command") or proto or "?").split()[0]
     uri = req.get("uri") or req.get("url") or rr.get("location") or ""
     # collapse trailing id-ish path segments so endpoints group cleanly
-    norm = re.sub(r"/(?:[0-9a-fA-F-]{8,}|[0-9]+|[a-z0-9-]*[0-9][a-z0-9-]*)(?=/|$)", "/{id}", uri)
+    norm = re.sub(r"/(?:[0-9a-fA-F-]{8,}|[0-9]+|[a-z0-9-]{8,}[0-9][a-z0-9-]*)(?=/|$)", "/{id}", uri)
     key = (direction, method, host or svc or "")
     endpoints[key][norm] += 1
 
@@ -168,8 +169,8 @@ if status_class:
     lines.append(f"  - codes: {detail}")
 lines.append("")
 
-dir_label = {"IN": "Inbound endpoints (requests to your app)",
-             "OUT": "Outbound endpoints (calls your app makes)"}
+dir_label = {"IN": "Inbound endpoints and operations (requests to your app)",
+             "OUT": "Outbound endpoints and operations (calls your app makes)"}
 for direction in ("IN", "OUT"):
     keys = [k for k in endpoints if k[0] == direction]
     if not keys:

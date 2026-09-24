@@ -1,5 +1,7 @@
 # Operator reference: Helm chart values, platforms, GitOps, upgrades
 
+Use the `KUBE_CONTEXT` selected in `SKILL.md` for every Helm and kubectl command that touches a cluster. Pass `--kube-context "$KUBE_CONTEXT"` to Helm and `--context="$KUBE_CONTEXT"` to kubectl.
+
 Read this during Phase 4 of SKILL.md when picking values for a specific
 platform, when the user cannot run Helm against the cluster, or when
 upgrading. The chart is `speedscale/speedscale-operator` from
@@ -260,14 +262,14 @@ recover them without printing the key and keep `clusterName` exactly as it
 is (a new name registers a new cluster):
 
 ```bash
-helm -n speedscale get values speedscale-operator -o json | jq 'del(.apiKey)' > speedscale-values.yaml
+helm --kube-context "$KUBE_CONTEXT" -n speedscale get values speedscale-operator -o json | jq 'del(.apiKey)' > speedscale-values.yaml
 ```
 
 ```bash
 helm repo update speedscale
 helm search repo speedscale/speedscale-operator            # see target version
-helm -n speedscale upgrade speedscale-operator speedscale/speedscale-operator -f speedscale-values.yaml --wait
-kubectl -n <captured-namespace> rollout restart deployment  # pick up new sidecar/agent
+helm --kube-context "$KUBE_CONTEXT" -n speedscale upgrade speedscale-operator speedscale/speedscale-operator -f speedscale-values.yaml --wait
+kubectl --context="$KUBE_CONTEXT" -n <captured-namespace> rollout restart deployment  # pick up new sidecar/agent
 ```
 
 Helm 3 never upgrades CRDs. After a chart upgrade, apply the CRD from the new
@@ -275,7 +277,7 @@ chart explicitly when release notes call for it:
 
 ```bash
 helm pull speedscale/speedscale-operator --untar --untardir /tmp/ss-chart
-kubectl apply -f /tmp/ss-chart/speedscale-operator/templates/crds/
+kubectl --context="$KUBE_CONTEXT" apply -f /tmp/ss-chart/speedscale-operator/templates/crds/
 ```
 
 A major chart version bump (2.x -> 3.0) signals a breaking change with
@@ -287,12 +289,9 @@ captured ones do not.
 ## 8. Uninstall
 
 ```bash
-helm -n speedscale uninstall speedscale-operator
-kubectl delete crd trafficreplays.speedscale.com          # CRDs are not removed by Helm
+helm --kube-context "$KUBE_CONTEXT" -n speedscale uninstall speedscale-operator
 ```
 
-or `speedctl uninstall --force`, which additionally removes webhook
-configurations, replay resources, and leftover cert Secrets. If someone
-already deleted the namespace by hand and deployments across the cluster now
-fail with `failed calling webhook "operator.speedscale.com"`, remove the
-webhooks manually (see troubleshooting) before anything else.
+Helm leaves the TrafficReplay CRD and its resources in place. For a full purge, first list `kubectl --context="$KUBE_CONTEXT" get trafficreplays.speedscale.com -A`, confirm the user wants those resources removed, then delete the CRD with the same context. `speedctl uninstall --force` also removes replay resources and needs the same confirmation.
+
+If someone already deleted the namespace by hand and deployments across the cluster now fail with `failed calling webhook "operator.speedscale.com"`, remove the webhooks manually (see troubleshooting) before anything else.

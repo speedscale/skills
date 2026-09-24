@@ -53,7 +53,7 @@ WORKSPACE_ROOT=$PWD
 (cd "$WORKSPACE_ROOT" && proxymock cloud pull report <report-id>)
 ```
 
-That gives you two trees:
+That gives you two trees. Set `RPT_DIR` before running the commands below:
 
 - `RPT_DIR`: the raw artifacts, plus metadata at `$RPT_DIR.json`. Current proxymock keeps them in the workspace; older versions used the Speedscale home directory. Take whichever exists:
 
@@ -62,6 +62,7 @@ That gives you two trees:
   [ -f "$RPT_DIR.json" ] || RPT_DIR="${SPEEDSCALE_HOME:-$HOME/.speedscale}/data/reports/<report-id>"
   ```
 
+- If `$RPT_DIR.json` still does not exist, stop and check the pull output before running the analysis commands.
 - `$WORKSPACE_ROOT/proxymock/report-<report-id>/`: one markdown file per request, with mock match status, browsable with `proxymock web`. The source snapshot lands next to it as `$WORKSPACE_ROOT/proxymock/snapshot-<id>/` when it still exists.
 
 If the pull fails with an auth or tenant error, the report probably belongs to
