@@ -1,6 +1,6 @@
 ---
 name: tune-snapshot-replay
-description: Iteratively tune a Speedscale snapshot or proxymock recording until its replay is accurate and its mocks match, in a persistent loop that measures, diagnoses, changes one thing, re-runs, and keeps or reverts. Works on both sides of a replay - the generator (replayed responses that differ from the recording) and the responder (outbound calls the mocks miss or pass through) - using proxymock recommendations plus the agent's own debugging of logs, payloads and diffs. Runs locally with proxymock or in the cloud, defaulting to where the traffic was recorded. Use when the user asks to "tune this snapshot", "get this replay to pass", "improve the match rate", "raise accuracy", "why does the replay keep failing, fix it", or wants a Ralph Wiggum style loop on a replay.
+description: Iteratively tune a Speedscale snapshot or proxymock recording until its replay is trustworthy, in a persistent loop that re-runs the replay, locally or in the cloud, measures, changes one thing, and keeps or reverts. Owns the generator side (replayed responses that differ from the recording - expired credentials, IDs created during the session, stateful environments, legitimately volatile fields) and the loop itself, and hands mock-side fixes to improve-mock-match-rate. Use when the user asks to "tune this snapshot", "get this replay to pass", "raise replay accuracy", "the replay keeps failing, fix it", or wants a Ralph Wiggum style loop on a replay. For mock match rate alone, without re-running, use improve-mock-match-rate.
 argument-hint: <snapshot-id | report-id | recording-dir> [--local | --cloud] [--target-accuracy 95] [--target-match 95] [--max-runs N]
 ---
 
@@ -125,17 +125,14 @@ evidence in this order and stop as soon as it explains the problem:
    events with their suggested fixes (`proxymock cloud replay status <id>`,
    or `watch-replay.sh` from `run-snapshot-replay` on older proxymock).
 4. **proxymock's own suggestions:** `proxymock recommendations list --in
-   <workspace>` (generator-side transforms) and `proxymock match-rate
-   analyze --in <workspace>` (responder-side fixes).
+   <workspace>` (generator-side transforms). Responder-side fixes come from
+   the `improve-mock-match-rate` skill (below).
 
 ### 2. Classify it
 
 | Side | Symptom | Likely cause | The one change to try |
 | --- | --- | --- | --- |
-| Responder | `NO_MATCH`, near-identical recorded request exists | volatile field in the signature: timestamp, UUID, trace header, nonce | `proxymock match-rate similar --id <miss>` to confirm, then `match-rate accept --id <rec>` |
-| Responder | `NO_MATCH`, no similar recorded request | that call was never recorded | not tunable: record that code path; note it as a finding |
-| Responder | `PASSTHROUGH` | host not in the recording, protocol not mocked, or (locally) the app bypassed the proxy | re-record, add a `--map` for the port, or fix proxy settings; note it |
-| Responder | auth or credential fields differ | tokens rotated since recording | **stop and ask**: masking auth can return the wrong mock |
+| Responder | `NO_MATCH`, `PASSTHROUGH`, low match rate | a signature that no longer matches, a call never recorded, or (locally) the app bypassing the proxy | use [`improve-mock-match-rate`](../improve-mock-match-rate/SKILL.md) for the iteration's change. Its playbook covers volatile signature fields, missing recordings and auth material. For a local run where you need per-call HIT/MISS/PASSTHROUGH, measure with [`proxymock-replay-tuning`](../proxymock-replay-tuning/SKILL.md). For proxy bypass, see the mocking check in `run-snapshot-replay` |
 | Generator | 401 or 403 where the recording had 2xx | expired or re-signed credential | `recommendations list --type transform` for JWT re-signing, or a credentials preflight; ask before changing auth |
 | Generator | 404 or empty result for an ID the app should know | an ID created earlier in the session (order, user, cart) is replayed verbatim but the app issued a new one | a correlation transform that carries the new value forward (recommendations often propose it); otherwise author one |
 | Generator | 409 or duplicate errors | the app keeps state between runs: the recorded create already exists | reset or seed the environment; or make the key unique per run with a transform |
@@ -150,15 +147,18 @@ Write the hypothesis in `LOOP.md` under **Next** before changing anything.
 
 1. `checkpoint.sh save <workspace> iter-<n>-before`.
 2. Make the change, preferring proxymock's own mechanisms:
-   - `proxymock match-rate accept --in <ws> --id <id>` (responder signatures)
+   - responder side: one fix through `improve-mock-match-rate` (it accepts
+     and, if the projection does not move, undoes `proxymock match-rate`
+     recommendations). Take one fix per iteration, not its whole loop, so
+     the re-run still tells you what that fix did.
    - `proxymock recommendations accept --in <ws> --id <id>` (generator transforms)
    - a transform in a blueprint (`proxymock transform` to author and test it)
    - a test config assertion exclusion (`proxymock/testconfigs/<name>.json`,
      checked with `proxymock test-config compile`) only for fields proven
      volatile
-3. Where it can be checked offline, check it first. `match-rate accept`
-   reports the projected match rate immediately; if the projection did not
-   move, undo (`match-rate undo`) and rethink before spending a run.
+3. Where it can be checked offline, check it first: a responder fix reports
+   its projected match rate immediately, so a fix that does not move the
+   projection is undone before it costs a run.
 
 ### 4. Re-run and score
 
@@ -228,5 +228,6 @@ Restore the best checkpoint if the last state is not the best. Then report:
 
 - [`run-snapshot-replay`](../run-snapshot-replay/SKILL.md): target detection, running, monitoring.
 - [`analyze-replay-report`](../analyze-replay-report/SKILL.md): deeper evidence reading for one report.
-- [`improve-mock-match-rate`](../improve-mock-match-rate/SKILL.md): the responder-side playbook in detail; its pattern table applies here.
+- [`improve-mock-match-rate`](../improve-mock-match-rate/SKILL.md): owns responder-side fixes; this skill calls it for one fix per iteration.
+- [`proxymock-replay-tuning`](../proxymock-replay-tuning/SKILL.md): measures per-call mock outcomes for a local run.
 - [`proxymock-regression-test`](../proxymock-regression-test/SKILL.md): turn the tuned replay into a baseline gate.

@@ -1,6 +1,6 @@
 ---
 name: run-snapshot-replay
-description: Run a Speedscale snapshot or a local proxymock recording as a replay and follow it to a result, either on this machine with proxymock or in a Kubernetes cluster through Speedscale cloud. Defaults to replaying against the same place the traffic was recorded (the cloud workload it was captured from, or the local app address). Use when the user asks to "run this snapshot", "replay snapshot <id>", "kick off a replay", "rerun the test", "watch the replay", or "is my replay done yet". Reports the verdict and hands off to analyze-replay-report or tune-snapshot-replay.
+description: Run a Speedscale snapshot or proxymock recording as a replay where it was recorded, and follow it to a result. Works out the original target (the cluster, namespace and workload it was captured from, or the local app address), runs it in a Kubernetes cluster through Speedscale cloud or on this machine, and monitors a cloud replay through its status and replay events. Use when the user asks to "run this snapshot", "replay snapshot <id>", "replay it in the cluster", "kick off a replay", "watch the replay", or "is my replay done yet". For a local regression gate against a known target, use proxymock-regression-test instead. Hands off to analyze-replay-report or tune-snapshot-replay.
 argument-hint: <snapshot-id | recording-dir> [--local | --cloud] [--workload <name>] [--test-config <id>]
 ---
 
@@ -210,28 +210,22 @@ running with `http_proxy`/`https_proxy` pointed at `localhost:4140`, start
 If the app cannot run locally (it needs the cluster's network or data), say
 so and offer cloud mode instead.
 
-### Replay and monitor
+### Replay
+
+The local replay itself, reading its verdict, and turning it into a baseline
+gate are covered by the
+[`proxymock-regression-test`](../proxymock-regression-test/SKILL.md) skill.
+Follow it, pointing `--test-against` at `localAddress` and writing the output
+next to the mock run:
 
 ```bash
-OUT=proxymock/replayed-$(date +%Y-%m-%d_%H-%M-%S)
-proxymock replay --in <recording-dir> --test-against <localAddress> --out "$OUT" \
-  [--test-config <config>] --log-to "$OUT.log"
+proxymock replay --in <recording-dir> --test-against <localAddress> \
+  --out proxymock/replayed-$(date +%Y-%m-%d_%H-%M-%S) [--test-config <config>]
 ```
 
-A local replay is synchronous. For a long one run it in the background and
-report progress from the number of RRPair files in `$OUT` against the
-inbound count from `replay prepare`; the log has the running totals. MCP
-equivalent: `replay_traffic`, then `list_running` and `read_process_logs`.
-
-When it exits, stop the mock server (Ctrl-C, or `mock_server_stop`) and read:
-
-```bash
-jq '{verdict, summary, goals}' "$OUT/replay-verdict.json"
-proxymock match-rate analyze --in proxymock      # mock match rate of this run
-```
-
-Exit code 1 means a goal or `--fail-if` condition failed; the verdict file says
-which.
+When it finishes, stop the mock server (Ctrl-C, or `mock_server_stop`). This
+skill adds only the steps around it: getting a cloud snapshot onto this
+machine, running the app behind the mock, and the check below.
 
 ### Check that mocking actually took effect
 
