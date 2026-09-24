@@ -13,7 +13,7 @@
     {
       "name": "speedscale",
       "source": "./",
-      "description": "Install Speedscale end to end, analyze replay reports, tune proxymock mock match rates, and run the proxymock quality loop: regression, verify-fix, contract, chaos, load, and perf testing over recorded traffic",
+      "description": "Install Speedscale end to end, run and monitor replays, tune replays until they are accurate and fully mocked, analyze replay reports, tune proxymock mock match rates, and run the proxymock quality loop: regression, verify-fix, contract, chaos, load, and perf testing over recorded traffic",
       "version": "0.1.0",
       "category": "devops",
       "tags": [
@@ -37,7 +37,9 @@
         "./skills/proxymock-replay-tuning",
         "./skills/proxymock-summarize-recording",
         "./skills/proxymock-verify-fix",
-        "./skills/quality-loop"
+        "./skills/quality-loop",
+        "./skills/run-snapshot-replay",
+        "./skills/tune-snapshot-replay"
       ]
     }
   ]

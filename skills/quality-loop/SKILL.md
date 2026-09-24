@@ -51,12 +51,16 @@ knowing, and how to read the result. Start there, not with the script.
 | "What is in this recording?" | `summarize` | **proxymock-summarize-recording** |
 | "Replay misses the mock", match-rate tuning | `tune` | **proxymock-replay-tuning** |
 | "Flat load run with SLO gates and a summary file" | `load-test` | **proxymock-load-test** |
+| "Run this snapshot where it was recorded", replay in the cluster, watch a replay | (skill only) | **run-snapshot-replay** |
+| "Get this replay to pass", fix accuracy and mocks across re-runs | (skill only) | **tune-snapshot-replay** |
 
 The first five routes build and exec a native command. The last four dispatch
 the repo's own analysis skill scripts unchanged. `load` and `load-test` are
 both here on purpose: `load` builds the native load command, `load-test` runs
 the `proxymock-load-test` script, which adds its own SLO gating and summary
-file on top.
+file on top. The two "skill only" rows are not dispatcher routes: they can
+run in a cluster through Speedscale cloud and re-run replays, so
+`quality-loop.sh` does not wrap them.
 
 Tie-breakers:
 
@@ -68,6 +72,13 @@ Tie-breakers:
   recording, is `regression`.
 - **compare / summarize / tune** are analysis routes over result or recording
   dirs; they do not drive traffic at your app.
+- **regression vs run-snapshot-replay** is decided by where the target is.
+  A local app at a known URL is `regression`. A snapshot to run where it was
+  recorded, often a cluster workload, is **run-snapshot-replay**.
+- **tune vs tune-snapshot-replay** is decided by what is wrong. Mock misses
+  in one local run are `tune` (or **improve-mock-match-rate** offline).
+  Replayed responses that differ, or anything needing re-runs to converge, is
+  **tune-snapshot-replay**.
 
 ## One-time setup (add water)
 
