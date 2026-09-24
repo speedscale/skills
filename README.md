@@ -57,6 +57,8 @@ ChatGPT on the web and mobile cannot install these skills directly from a GitHub
 | [`install-speedscale`](skills/install-speedscale/SKILL.md) | End-to-end install: CLIs, prerequisites, API key, operator Helm chart, verification, MCP wiring, upgrades, uninstall |
 | [`analyze-replay-report`](skills/analyze-replay-report/SKILL.md) | Explain a cloud report or a local proxymock replay run: verdict, the first failing response, root-cause bucket, and next steps |
 | [`improve-mock-match-rate`](skills/improve-mock-match-rate/SKILL.md) | Pull a replay report and tune mock blueprints until the projected match rate stops improving |
+| [`run-snapshot-replay`](skills/run-snapshot-replay/SKILL.md) | Run a snapshot or recording as a replay, locally or in the cloud, defaulting to where it was recorded, and follow it to a verdict |
+| [`tune-snapshot-replay`](skills/tune-snapshot-replay/SKILL.md) | Loop until a replay is accurate and fully mocked: measure, change one thing, re-run, keep or revert, with progress kept on disk |
 
 ### proxymock quality loop
 
