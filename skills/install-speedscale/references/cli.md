@@ -93,7 +93,10 @@ What they do, in order:
 Consequences worth knowing:
 
 - The scripts never modify `PATH`. You must add `~/.speedscale` yourself.
-- Setting `SPEEDSCALE_API_KEY` before running the script makes it self-initialize non-interactively. In an agent session, run `speedctl check` afterward to verify registration without putting the key in process arguments.
+- Setting `SPEEDSCALE_API_KEY` before running the script makes it
+  self-initialize non-interactively. Convenient in CI; in an agent session
+  prefer the explicit `init --api-key "$SPEEDSCALE_API_KEY" -y` so the step
+  is visible.
 - Version pin: `sh -c "$(curl -Lfs <url>)" -s v2.5.978`. Match the operator
   chart's `appVersion` when a customer wants CLI and cluster in lockstep;
   otherwise latest is fine, the CLI is backward compatible with older
@@ -132,7 +135,8 @@ HTTP URL from `proxymock mcp json --http`.
 ## 5. Config file and API key locations
 
 - Home: `~/.speedscale` unless `SPEEDSCALE_HOME` is set (`--home` on `init`).
-- Config: `config.json` preferred when present, otherwise `config.yaml`. A new `init` writes YAML unless the config is converted to JSON. Structure: `current-context`, `contexts[]` (each with `name`,
+- Config: `config.json` preferred, `config.yaml` accepted. A new `init`
+  writes JSON. Structure: `current-context`, `contexts[]` (each with `name`,
   `tenant`, `app-url`), `tenants[]` (each with `name`, `apikey`). The API key
   for the active context is the `apikey` of the tenant whose `name` equals
   the current context's `tenant`. `scripts/apikey.sh` does this lookup.
@@ -149,7 +153,7 @@ HTTP URL from `proxymock mcp json --http`.
 
 ```
 speedctl init | proxymock init
-  --api-key <key>        non-interactive; exposes the key in process arguments, so use environment-based registration instead
+  --api-key <key>        non-interactive; otherwise a browser sign-in flow
   -y, --yes              answer yes to optional prompts (rcfile update, MCP install into detected clients)
   --home <dir>           speedscale home (default ~/.speedscale)
   --rcfile <file>        shell rc to update (default: current shell's)
@@ -163,7 +167,9 @@ Behaviours:
 
 - Browser flow requires a human; it cannot be completed from an agent shell.
   Ask the user to run it in their terminal, then continue.
-- Non-interactive registration is a paid feature for proxymock (Pro or Enterprise). Set `SPEEDSCALE_API_KEY` and run `speedctl check` from a clean Speedscale home. Free-tier users must use the browser flow once; after that the config file works everywhere.
+- Non-interactive init (`--api-key`) is a paid feature for proxymock (Pro or
+  Enterprise). Free-tier users must use the browser flow once; after that the
+  config file works everywhere.
 - After auth, `init` detects coding agents (Cursor, Claude Desktop, Claude
   Code, VS Code, Gemini CLI, OpenCode, Codex, Kiro) and offers to add the
   proxymock MCP server. `-y` accepts all; `--quiet` skips the step entirely.

@@ -67,9 +67,8 @@ for bin in speedctl proxymock; do
     v=$("$bin" version --client 2>/dev/null | head -n1)
     [ -z "$v" ] && v=$("$bin" version 2>/dev/null | head -n1)
     say "$bin: $v  ($(command -v "$bin"))"
-    copies=$(which -a "$bin" 2>/dev/null | sort -u)
-    n=$(printf '%s\n' "$copies" | sed '/^$/d' | wc -l | tr -d ' ')
-    [ "$n" -gt 1 ] && say "$bin: WARNING $n copies on PATH: $(printf '%s\n' "$copies" | tr '\n' ' ')"
+    n=$(command -v -a "$bin" 2>/dev/null | sort -u | wc -l | tr -d ' ')
+    [ "$n" -gt 1 ] && say "$bin: WARNING $n copies on PATH: $(command -v -a "$bin" | sort -u | tr '\n' ' ')"
   elif [ -x "$SS_HOME/$bin" ]; then
     say "$bin: installed at $SS_HOME/$bin but NOT on PATH"
   else

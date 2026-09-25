@@ -1,6 +1,8 @@
 #!/bin/sh
-# apikey.sh - read the current context's API key or app URL for use by local
-# scripts. Do not pass its output as a command argument.
+# apikey.sh - print the Speedscale API key for the current context and nothing
+# else, so callers can use it inside a command substitution without the key
+# ever appearing in a transcript:
+#   kubectl create secret generic speedscale-apikey --from-literal=SPEEDSCALE_API_KEY="$(sh apikey.sh)"
 # Order: $SPEEDSCALE_API_KEY, then ~/.speedscale/config.json, then config.yaml.
 # Optional: SPEEDSCALE_CONTEXT=<name> selects a context other than current.
 # With --app-url it prints the context's Speedscale host (app.speedscale.com
@@ -46,24 +48,18 @@ PY
   fi
 elif [ -f "$home/config.yaml" ]; then
   cfg="$home/config.yaml"
-  # The CLI's YAML lists are indented beneath contexts: and tenants:.
+  # Minimal YAML walk: find the current context's tenant, then that tenant's apikey.
   key=$(awk -v want="$want" -v field="$field" '
     /^current-context:/ && want=="" { want=$2; gsub(/"/,"",want) }
-    /^contexts:/ { sec="ctx"; next }
-    /^tenants:/ { sec="ten"; next }
-    /^[a-z][^:]*:/ { sec="" }
-    sec=="ctx" && /^[[:space:]]*-[[:space:]]*name:/ { cname=$NF; gsub(/"/,"",cname) }
-    sec=="ctx" && /^[[:space:]]*app-url:/ && cname==want { appurl=$NF; gsub(/"/,"",appurl) }
-    sec=="ctx" && /^[[:space:]]*tenant:/ && cname==want { tenant=$NF; gsub(/"/,"",tenant) }
-    sec=="ten" && /^[[:space:]]*-[[:space:]]*name:/ { tname=$NF; gsub(/"/,"",tname) }
-    sec=="ten" && /^[[:space:]]*apikey:/ && tname!="" { tenantkey[tname]=$NF; gsub(/"/,"",tenantkey[tname]) }
-    END {
-      if (field=="appurl" && tenant!="") printf "%s", (appurl==""?"app.speedscale.com":appurl)
-      if (field=="apikey" && tenant!="") printf "%s", tenantkey[tenant]
-    }
+    /^contexts:/ { sec="ctx"; next } /^tenants:/ { sec="ten"; next } /^[a-z]/ { sec="" }
+    sec=="ctx" && /^- name:/ { cname=$3; gsub(/"/,"",cname) }
+    sec=="ctx" && /^  app-url:/ && cname==want && field=="appurl" { u=$2; gsub(/"/,"",u); printf "%s", (u==""?"app.speedscale.com":u); exit }
+    sec=="ctx" && /^  tenant:/ && cname==want { tenant=$2; gsub(/"/,"",tenant) }
+    sec=="ten" && /^- / { tname=""; tkey="" }
+    sec=="ten" && /name:/ { v=$NF; gsub(/"/,"",v); if ($1=="name:" || $2=="name:") tname=v }
+    sec=="ten" && /^  apikey:/ { tkey=$2; gsub(/"/,"",tkey); if (tname==tenant && tkey!="") { printf "%s", tkey; exit } }
   ' "$cfg")
 else
-  if [ "$field" = appurl ]; then printf '%s' app.speedscale.com; exit 0; fi
   echo "apikey.sh: no Speedscale config in $home; run 'speedctl init' first or export SPEEDSCALE_API_KEY" >&2; exit 1
 fi
 

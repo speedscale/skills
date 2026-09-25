@@ -59,8 +59,11 @@ holds get/list/watch/patch on workloads across namespaces (or only those in
 
 - Browser flow never completes from the agent shell: it needs a human. Ask
   the user to run `proxymock init` in their own terminal.
-- `speedctl check` fails with 401/403: the key may be revoked or from another tenant. Rotate it at https://app.speedscale.com/profile, then have the user run `proxymock init --overwrite` in their terminal. In CI, update the secret and run `speedctl check` with a clean Speedscale home so environment-based registration writes a fresh config.
-- Non-interactive registration rejected: environment-based registration requires proxymock Pro or an Enterprise tenant. Free users do the browser flow once.
+- `speedctl check` fails with 401/403: key revoked or from another tenant.
+  Re-run `init --overwrite --api-key "$SPEEDSCALE_API_KEY" -y`, or rotate at
+  https://app.speedscale.com/profile.
+- Non-interactive init rejected: `--api-key` requires proxymock Pro or an
+  Enterprise tenant. Free users do the browser flow once.
 - Wrong tenant: `speedctl check` prints the tenant name; compare with the
   user's expectation before installing the operator. Switch with
   `speedctl config use-context <name>`.
@@ -119,8 +122,9 @@ kubectl -n speedscale logs deploy/speedscale-operator --tail=100
   helm -n speedscale uninstall speedscale-operator
   kubectl delete mutatingwebhookconfigurations speedscale-operator speedscale-operator-replay --ignore-not-found
   kubectl delete validatingwebhookconfiguration speedscale-operator speedscale-operator-replay --ignore-not-found
+  kubectl delete ns speedscale
   ```
-  Check for other resources in the `speedscale` namespace before deleting it; the certificate problem does not require namespace deletion. Then re-run Phase 4 from the Secret step.
+  then re-run Phase 4 from the Secret step.
 - Operator Running but forwarder/inspector never appear: registration with
   the cloud failed. Logs show the HTTP error; usually egress or tenant.
 - `Pending` pods: tolerations/nodeSelector do not match any node, or

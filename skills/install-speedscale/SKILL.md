@@ -16,14 +16,20 @@ team wiring a shared cluster may not want proxymock on the bastion host.
 | `proxymock` | Local record / mock / replay CLI with a built-in MCP server and web UI | Any developer laptop; anyone who wants AI-agent access to Speedscale |
 | Speedscale Operator | Helm chart (`speedscale/speedscale-operator`) that captures traffic in Kubernetes and runs in-cluster replays | User has a cluster to record from or replay into |
 
-Both CLIs are the same binary family, install to `~/.speedscale/`, and share `~/.speedscale/config.yaml` (or a converted `config.json`). Authenticating one authenticates the other.
+Both CLIs are the same binary family, install to `~/.speedscale/`, and share
+`~/.speedscale/config.json`. Authenticating one authenticates the other.
 
 ## Ground rules (read these, they explain the shape of everything below)
 
 - **Do not run `speedctl install`.** It is an interactive TUI wizard that
   exits immediately without a TTY, and even with one it expects a human at the
   prompts. Drive Helm directly; you get the same result and can see every value.
-- **Never print, echo, paste, or log an API key.** Keys live in `~/.speedscale/config.yaml` (or `config.json`) and in the `SPEEDSCALE_API_KEY` environment variable. A quoted shell variable or command substitution still expands into a process argument. Use the environment for CLI authentication and `scripts/create-apikey-secret.sh` for Kubernetes; never put the key in a command argument or Helm value.
+- **Never print, echo, paste, or log an API key.** Keys live in
+  `~/.speedscale/config.json` and in the `SPEEDSCALE_API_KEY` environment
+  variable. Pass them by reference (`"$SPEEDSCALE_API_KEY"`, a Kubernetes
+  Secret, `scripts/apikey.sh` inside a command substitution). If a command
+  would put the key on the command line where it lands in shell history or
+  your transcript, restructure it.
 - **If a command opens a browser or waits on a prompt, stop and hand it
   to the user.** `speedctl init` / `proxymock init` without `--api-key` do
   this on purpose; `speedctl uninstall` prompts unless `--force`; `init`
@@ -144,8 +150,12 @@ human is present:
 1. **Human at the keyboard (default):** ask the user to run `proxymock init`
    (or `speedctl init`) in their own terminal. It opens a browser sign-in and
    writes the config. You cannot complete a browser flow for them.
-2. **Key already available:** if `SPEEDSCALE_API_KEY` is set in the environment, or the user sets it in their own terminal, run `speedctl check`. The CLI registers automatically from the environment when no config exists. Set `SPEEDSCALE_APP_URL` first for a non-default host. Never ask the user to paste a key into the chat.
-3. **Headless/CI:** use the same environment-based registration. It requires proxymock Pro or Speedscale Enterprise.
+2. **Key already available:** if `SPEEDSCALE_API_KEY` is set in the
+   environment, or the user pastes a key *into their own terminal*, run
+   `speedctl init --api-key "$SPEEDSCALE_API_KEY" -y`. Never ask the user to
+   paste a key into the chat.
+3. **Headless/CI:** same as 2. Note for the user that non-interactive init
+   requires proxymock Pro or Speedscale Enterprise.
 
 Where keys come from: <https://app.speedscale.com/profile> (enterprise
 tenants) or <https://app.speedscale.com/proxymock/signup> (free proxymock).
@@ -177,11 +187,11 @@ over the webhooks.
 
 **4b. Pre-install checks.** Read-only, needs speedctl authenticated, and
 only for a fresh install (it fails by design when the namespace already
-exists; on an existing install use the same helper without `--pre`
+exists; on an existing install run `speedctl check operator -n speedscale`
 instead):
 
 ```bash
-sh scripts/with-kube-context.sh "$KUBE_CONTEXT" speedctl check operator --pre -n speedscale
+speedctl check operator --pre -n speedscale
 ```
 
 Failures here are RBAC or API-version problems; fix them before Helm rather
@@ -189,7 +199,7 @@ than after a half-applied release. The needed create permissions are listed in
 `references/troubleshooting.md`.
 
 **4c. Pick a cluster name.** If a release already exists, keep its name
-(`helm --kube-context "$KUBE_CONTEXT" -n speedscale get values speedscale-operator -o json | jq -r .clusterName`);
+(`helm -n speedscale get values speedscale-operator -o json | jq -r .clusterName`);
 renaming re-registers the cluster and orphans its history in the dashboard.
 For a fresh install derive it from the kube context, lower-cased,
 `[a-z0-9-]` only, no longer than 63 chars. It becomes the label users see in
@@ -197,14 +207,25 @@ the dashboard, so prefer something a teammate recognizes (`eks-dev-us-east-1`
 over `arn-aws-eks-...`). Confirm it with the user in the same breath as the
 context confirmation from the ground rules.
 
-**4d. Put the API key in a Secret, not in Helm values.** The chart accepts a Secret name, which keeps the key out of `helm get values`, release history, and any rendered manifest you commit. The helper checks that it found a key, then sends it through stdin rather than a kubectl argument:
+**4d. Put the API key in a Secret, not in Helm values.** The chart accepts a
+Secret name, which keeps the key out of `helm get values`, release history,
+and any rendered manifest you commit:
 
 ```bash
-kubectl --context="$KUBE_CONTEXT" create namespace speedscale --dry-run=client -o yaml | kubectl --context="$KUBE_CONTEXT" apply -f -
-bash scripts/create-apikey-secret.sh speedscale "$KUBE_CONTEXT"
+kubectl create namespace speedscale --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n speedscale create secret generic speedscale-apikey \
+  --from-literal=SPEEDSCALE_API_KEY="$(sh scripts/apikey.sh)" \
+  --from-literal=SPEEDSCALE_APP_URL="$(sh scripts/apikey.sh --app-url)" \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-The helper reads the current Speedscale context from the config (or `SPEEDSCALE_API_KEY`) and uses its app URL (`app.speedscale.com` for most tenants). BYOC, on-prem, and Speedscale's own dev tenants differ; a cluster registered against the wrong host lands in the wrong account. Do not use `--set apiKey=...`: it exposes the key in process arguments and Helm history.
+`scripts/apikey.sh` reads the key for the current context from the config
+(or `SPEEDSCALE_API_KEY`) and prints only that, so the command substitution
+keeps it off your transcript. `--app-url` prints the context's Speedscale
+host instead (`app.speedscale.com` for almost everyone; BYOC, on-prem, and
+Speedscale's own dev tenants differ, and a cluster registered against the
+wrong host silently lands in the wrong account). If the user insists on `--set apiKey=...`, use
+`--set apiKey="$SPEEDSCALE_API_KEY"` and never a literal.
 
 **4e. Write a values file.** Start from this and add the platform block from
 `references/operator.md` that matches the preflight's provider guess:
@@ -228,7 +249,7 @@ For an existing release, start from its live values minus the key instead
 of this template, so nothing the previous installer chose is lost:
 
 ```bash
-helm --kube-context "$KUBE_CONTEXT" -n speedscale get values speedscale-operator -o json | jq 'del(.apiKey)' > speedscale-values.yaml
+helm -n speedscale get values speedscale-operator -o json | jq 'del(.apiKey)' > speedscale-values.yaml
 ```
 
 Save it somewhere durable in the user's repo or home dir (not a temp dir) and
@@ -240,7 +261,6 @@ tell them where; the same file is reused for every upgrade.
 helm repo add speedscale https://speedscale.github.io/operator-helm/
 helm repo update speedscale
 helm upgrade --install speedscale-operator speedscale/speedscale-operator \
-  --kube-context "$KUBE_CONTEXT" \
   -n speedscale --create-namespace \
   -f speedscale-values.yaml \
   --wait --timeout 10m
@@ -252,10 +272,10 @@ before any operator resources are applied. If it fails with
 before retrying:
 
 ```bash
-kubectl --context="$KUBE_CONTEXT" -n speedscale logs job/speedscale-operator-pre-install
+kubectl -n speedscale logs job/speedscale-operator-pre-install
 ```
 
-Then `helm --kube-context "$KUBE_CONTEXT" -n speedscale uninstall speedscale-operator`, delete the job, fix
+Then `helm -n speedscale uninstall speedscale-operator`, delete the job, fix
 the cause (almost always a wrong tenant/key or blocked egress), and re-run.
 `references/troubleshooting.md` has the full list.
 
@@ -265,7 +285,7 @@ Run the bundled checker (works for a cluster you installed or one that was
 already there):
 
 ```bash
-sh scripts/verify.sh speedscale "$KUBE_CONTEXT"
+sh scripts/verify.sh speedscale
 ```
 
 It checks the Helm release, the CRD, the operator/forwarder/inspector
@@ -281,9 +301,9 @@ after it passes:
 
 The cluster part is done only when all of these are true:
 
-- [ ] `helm --kube-context "$KUBE_CONTEXT" -n speedscale status speedscale-operator` is `deployed`
+- [ ] `helm -n speedscale status speedscale-operator` is `deployed`
 - [ ] operator, forwarder, and inspector Deployments are Available
-- [ ] `sh scripts/with-kube-context.sh "$KUBE_CONTEXT" speedctl check operator -n speedscale` ends `All checks were successful`
+- [ ] `speedctl check operator -n speedscale` ends `All checks were successful`
 - [ ] `speedctl infra inspectors` lists `CLUSTER_NAME`
 - [ ] if eBPF is on: `speedscale-nettap` DaemonSet READY equals DESIRED
 - [ ] the values file is saved at a path the user knows about
@@ -329,7 +349,7 @@ Speedscale install - <date>
 Mode: local | cluster | cli-only
 Machine: <os/arch>, shell <name>
 speedctl: <version> at <path>      proxymock: <version> at <path>
-Tenant: <name>                     Config: ~/.speedscale/config.yaml (or config.json)
+Tenant: <name>                     Config: ~/.speedscale/config.json
 Cluster: <context> -> clusterName <name>, namespace speedscale, chart <version>
 Values file: <path>                API key: Secret speedscale/speedscale-apikey
 eBPF: enabled|disabled (<reason>)  Demo app: deployed|skipped
@@ -342,16 +362,21 @@ Next: run the tutorial at https://docs.speedscale.com/tutorial/ | add capture ta
 ## Upgrades, reinstalls, uninstall
 
 - **Upgrade the operator:** `helm repo update speedscale` then the same
-  `helm upgrade --install ... --kube-context "$KUBE_CONTEXT" -f speedscale-values.yaml`. No values file on
+  `helm upgrade --install ... -f speedscale-values.yaml`. No values file on
   disk (someone installed with `--set`)? Rebuild one without exposing the
-  key: `helm --kube-context "$KUBE_CONTEXT" -n speedscale get values speedscale-operator -o json | jq
+  key: `helm -n speedscale get values speedscale-operator -o json | jq
   'del(.apiKey)'`, then move the key into the Secret from 4d. Restart captured
-  workloads afterwards (`kubectl --context="$KUBE_CONTEXT" -n <ns> rollout restart deployment`) so
+  workloads afterwards (`kubectl -n <ns> rollout restart deployment`) so
   sidecars/agents pick up the new version. CRDs are not upgraded by Helm; see
   `references/operator.md` for the manual step on major versions.
 - **Upgrade CLIs:** `speedctl update` (or `brew upgrade`). proxymock: re-run
   its install script.
-- **Uninstall the operator:** `helm --kube-context "$KUBE_CONTEXT" -n speedscale uninstall speedscale-operator`. Leave the TrafficReplay CRD and its resources in place unless the user explicitly requests a full purge after inspecting them. `speedctl uninstall --force` also removes replay resources, so use it only for an approved full purge. Never delete the `speedscale` namespace by hand first: a dangling mutating webhook can then block deployments in the cluster (fix in troubleshooting).
-- **Uninstall CLIs:** `brew uninstall ...` or `rm ~/.speedscale/{speedctl,proxymock}` and remove the `PATH` line. `~/.speedscale/config.yaml` (or `config.json`) holds the key; remove it too if the machine is being handed off.
-
-The local helper proof is `bash scripts/prove-install-speedscale.sh`. It checks config lookup, Secret input, context selection, and missing-key rejection without contacting a cluster.
+- **Uninstall the operator:** `helm -n speedscale uninstall
+  speedscale-operator`, then `kubectl delete crd trafficreplays.speedscale.com`.
+  `speedctl uninstall --force` does a fuller sweep (webhooks, leftover
+  certs) and is the right tool after a botched manual delete. Never delete the
+  `speedscale` namespace by hand first: a dangling mutating webhook will then
+  block every deployment in the cluster (fix in troubleshooting).
+- **Uninstall CLIs:** `brew uninstall ...` or `rm ~/.speedscale/{speedctl,proxymock}`
+  and remove the `PATH` line. `~/.speedscale/config.json` holds the key;
+  remove it too if the machine is being handed off.

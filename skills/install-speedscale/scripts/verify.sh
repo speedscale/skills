@@ -84,8 +84,8 @@ fi
 
 # 9. speedctl view (cloud-side registration)
 if have speedctl; then
-  out=$(sh "$(dirname "$0")/with-kube-context.sh" "$ctx" speedctl check operator -n "$ns" 2>&1)
-  if printf '%s\n' "$out" | grep -q 'All checks were successful'; then pass "speedctl check operator: all checks successful"; else failed "speedctl check operator reported problems:"; printf '%s\n' "$out" | tail -n 25 | sed 's/^/      /'; fi
+  out=$(speedctl check operator -n "$ns" 2>&1)
+  if echo "$out" | grep -q 'All checks were successful'; then pass "speedctl check operator: all checks successful"; else failed "speedctl check operator reported problems:"; echo "$out" | tail -n 25 | sed 's/^/      /'; fi
 else
   warn "speedctl not installed; skipped cloud-side registration check"
 fi
