@@ -40,7 +40,7 @@ skill_dir="$(cd "$script_dir/.." && pwd)"
 # When this skill lives inside that repo the fixture is two levels up; otherwise point
 # MOCK_LAB_DIR at a checkout.
 repo_root="${MOCK_LAB_DIR:-$(cd "$skill_dir/../.." && pwd)}"
-if [[ ! -d "$repo_root/lab/proxymock/recording" ]]; then
+if [[ ! -d "$repo_root/proxymock/recording" ]]; then
   echo "mock-lab fixture not found at $repo_root; set MOCK_LAB_DIR to a checkout of https://github.com/speedscale/mock-lab" >&2
   exit 1
 fi
@@ -52,7 +52,7 @@ need_cmd proxymock
 need_cmd python3
 [[ -x "$load_script" ]] || die "load-test script is not executable: $load_script"
 
-recording="$repo_root/lab/proxymock/recording"
+recording="$repo_root/proxymock/recording"
 [[ -d "$recording" ]] || die "missing committed recording: $recording"
 
 tmp="${TMPDIR:-/tmp}/proxymock-load-test-proof.$$"

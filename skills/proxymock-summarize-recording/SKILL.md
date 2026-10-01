@@ -67,4 +67,4 @@ mix) and the summary path.
 ./skills/proxymock-summarize-recording/scripts/prove-proxymock-summarize-recording.sh
 ```
 
-The proof summarizes the committed `lab/proxymock/recording`, checks hosts, endpoints, status mix, and non-HTTP pair counts, and uses a local report stub to verify digest inclusion without cloud credentials.
+The proof summarizes the committed `proxymock/recording`, checks hosts, endpoints, status mix, and non-HTTP pair counts, and uses a local report stub to verify digest inclusion without cloud credentials.

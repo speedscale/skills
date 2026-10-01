@@ -15,13 +15,13 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # When this skill lives inside that repo the fixture is two levels up; otherwise point
 # MOCK_LAB_DIR at a checkout.
 repo_root="${MOCK_LAB_DIR:-$(cd "$script_dir/../../.." && pwd)}"
-if [[ ! -d "$repo_root/lab/proxymock/recording" ]]; then
+if [[ ! -d "$repo_root/proxymock/recording" ]]; then
   echo "mock-lab fixture not found at $repo_root; set MOCK_LAB_DIR to a checkout of https://github.com/speedscale/mock-lab" >&2
   exit 1
 fi
 ql="$script_dir/quality-loop.sh"
-recording="$repo_root/lab/proxymock/recording"
-spec="$repo_root/lab/openapi.yaml"
+recording="$repo_root/proxymock/recording"
+spec="$repo_root/shared/openapi.yaml"
 
 need proxymock; need python3; need curl; need lsof
 [[ -x "$ql" ]] || fail "dispatcher is not executable: $ql"
@@ -133,7 +133,7 @@ stub() {
 
 echo "== 1. doctor: 0 healthy against this repo, 1 against an empty root, 2 on usage"
 expect_rc 0 doctor-repo bash "$ql" doctor --root "$repo_root"
-saw doctor-repo "lab/proxymock/recording"
+saw doctor-repo "proxymock/recording"
 saw doctor-repo "mocklab-smart-replace.json"
 saw doctor-repo "^healthy:"
 mkdir -p "$tmp/empty"

@@ -86,9 +86,9 @@ Tie-breakers:
    `proxymock record -- <app command>`, then drive real traffic at it (the
    repo's test driver, a curl pass over every endpoint, a browser session). In
    this repo: `cd languages/go && proxymock record -- go run .` plus
-   `./lab/tests/run_tests.sh --recording` from the root.
+   `./shared/tests/run_tests.sh --recording` from the root.
 2. **Keep the recording.** Commit it as the baseline snapshot; RRPairs are
-   markdown and diff cleanly. This repo ships one at `lab/proxymock/recording`.
+   markdown and diff cleanly. This repo ships one at `proxymock/recording`.
 3. **Create the comparison baseline.** Run `proxymock replay` once against a
    known-good build and keep its `--out` dir. From then on gate
    baseline-relative, so the deterministic noise floor cannot false-positive.
@@ -112,7 +112,7 @@ preconditions / 2 usage.
   than "the parent of `--in`". If a workspace blueprint does not load, put a
   copy inside `--in`; that location loaded in every layout measured. Use that
   as a local workaround only: this repo's blueprint ships at
-  `lab/proxymock/blueprints/`, the workspace dir beside the recording, and a
+  `proxymock/blueprints/`, the workspace dir beside the recording, and a
   shared committed blueprint should not be relocated to dodge the quirk.
 - **Confirm, do not assume**, with the `Loaded blueprint "<name>" from <path>`
   line in the replay output. Never move a blueprint the log says is loading.
@@ -251,5 +251,5 @@ the same native binary and per-skill proofs would be five copies of the same
 assertions. It is hermetic: no cloud, no live downstream, no app build. It runs
 `doctor` against this repo (exit 0) and an empty dir (exit 1), checks the usage
 contract (exit 2), then exercises every documented native command against the
-committed `lab/proxymock/recording` and asserts the exit-code contract for each
+committed `proxymock/recording` and asserts the exit-code contract for each
 mode.

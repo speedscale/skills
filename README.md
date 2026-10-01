@@ -64,7 +64,7 @@ ChatGPT on the web and mobile cannot install these skills directly from a GitHub
 
 Skills for testing a service with recorded traffic and no Speedscale Cloud
 account. They were developed in [mock-lab](https://github.com/speedscale/mock-lab)
-and their examples use its committed fixture, `lab/proxymock/recording`, so
+and their examples use its committed fixture, `proxymock/recording`, so
 paths like that are relative to a mock-lab checkout. The `prove-*.sh` scripts
 need `MOCK_LAB_DIR` pointing at one. They assume proxymock v2.5.814 or newer;
 `skills/quality-loop/scripts/quality-loop.sh doctor` warns if yours is older.

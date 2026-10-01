@@ -23,7 +23,7 @@ Options:
 
 Examples:
   proxymock-summarize-recording.sh --in ./proxymock/recording
-  proxymock-summarize-recording.sh --in ./lab/proxymock/recording --out brief.md
+  proxymock-summarize-recording.sh --in ./proxymock/recording --out brief.md
 USAGE
 }
 

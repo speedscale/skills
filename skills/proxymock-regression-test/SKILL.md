@@ -106,7 +106,7 @@ fail before and after the change.
   `blueprints/`, did not pick it up. If a workspace blueprint does not load,
   a copy inside `--in` is a local workaround, but do not relocate a shared,
   committed blueprint to work around it. This repo's blueprint ships at
-  `lab/proxymock/blueprints/`, beside the recording it serves.
+  `proxymock/blueprints/`, beside the recording it serves.
 - **Confirm it loaded** with the `Loaded blueprint "<name>" from <path>` line
   in the replay output. Never move a blueprint the log says is loading.
 - **The hostname trap (this one costs you the whole run).** Replay rewrites the
@@ -138,7 +138,7 @@ fail before and after the change.
 - **`match: pass` with `bodyMatch: fail`**: right status, wrong field. Read
   `bodyChanges[]` for the JSON location.
 - **Failures present but none new**: the known noise floor. This repo's
-  `lab/proxymock/recording` has none left — with its blueprint chaining both
+  `proxymock/recording` has none left — with its blueprint chaining both
   moving IDs, all 8 pairs match on status and body, so any failure there is
   real.
 - **Known-mismatch pairs**: masked only against the failure they showed in the

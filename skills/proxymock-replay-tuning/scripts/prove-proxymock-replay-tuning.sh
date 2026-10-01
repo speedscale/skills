@@ -40,7 +40,7 @@ skill_dir="$(cd "$script_dir/.." && pwd)"
 # When this skill lives inside that repo the fixture is two levels up; otherwise point
 # MOCK_LAB_DIR at a checkout.
 repo_root="${MOCK_LAB_DIR:-$(cd "$skill_dir/../.." && pwd)}"
-if [[ ! -d "$repo_root/lab/proxymock/recording" ]]; then
+if [[ ! -d "$repo_root/proxymock/recording" ]]; then
   echo "mock-lab fixture not found at $repo_root; set MOCK_LAB_DIR to a checkout of https://github.com/speedscale/mock-lab" >&2
   exit 1
 fi
@@ -86,7 +86,7 @@ inbound_json="$tmp/inbound-coverage.json"
 report_json="$tmp/proof-summary.json"
 
 echo "starting local CNCF downstream API"
-(cd "$repo_root/lab/server" && PORT="$downstream_port" go run . >"$tmp/downstream.log" 2>&1) &
+(cd "$repo_root/shared/server" && PORT="$downstream_port" go run . >"$tmp/downstream.log" 2>&1) &
 pids+=("$!")
 wait_url "http://127.0.0.1:${downstream_port}/healthz" || die "downstream API did not start; see $tmp/downstream.log"
 
@@ -113,7 +113,7 @@ pids+=("$!")
 
 wait_url "http://127.0.0.1:${proxy_in_port}/" || die "proxymock record/app did not start; see $tmp/record.log"
 
-mapfile -t project_ids < <(python3 - "$repo_root/lab/server/data/projects.json" <<'PY'
+mapfile -t project_ids < <(python3 - "$repo_root/shared/server/data/projects.json" <<'PY'
 import json
 import sys
 

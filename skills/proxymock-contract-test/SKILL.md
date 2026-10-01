@@ -37,12 +37,12 @@ Point it at the dependency host subdir instead.
 
 ```bash
 # does the dependency's recorded behavior match its spec?
-proxymock validate --spec lab/openapi.yaml \
-  --in lab/proxymock/recording/demo-api.trafficreplay.com
+proxymock validate --spec shared/openapi.yaml \
+  --in proxymock/recording/demo-api.trafficreplay.com
 
 # same check against a replay output dir: a violation introduced between
 # recording and replay is a change your code made
-proxymock validate --spec lab/openapi.yaml --in ./regress-run
+proxymock validate --spec shared/openapi.yaml --in ./regress-run
 ```
 
 | Exit | Meaning |
@@ -122,7 +122,7 @@ code paths. It is not logic-grade data. All measured:
 One shared proof covers this pack (a documented deviation from the repo's
 one-prove-per-skill convention: every skill runs the same native binary now).
 The cases covering this skill check the committed recording's dependency pairs
-against the committed `lab/openapi.yaml` and verify 5/5 conformant at exit 0;
+against the committed `shared/openapi.yaml` and verify 5/5 conformant at exit 0;
 seed `stars: "many"` into a copy and verify exit 2 with the exact violation
 string; and point the same spec at the recording's `localhost/` subdir to
 verify the asymmetry lands as exit 3 with `NO_ROUTE` pairs named.
