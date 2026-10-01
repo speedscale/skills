@@ -1,6 +1,6 @@
 ---
 name: quality-loop
-description: Route a development intent to the right native proxymock command (regression gate, incident fix verification, load, chaos resilience, contract conformance) or to the repo's analysis skills (comparison, summarization, match-rate tuning, load), and get a repo into the traffic quality loop with one recording. Includes a doctor that checks the proxymock version, recordings, blueprints, runtime proxy support, and ports. Use when users ask how to test a change with recorded traffic, which proxymock command applies to a task, to set up the quality loop in a repo, or to check whether the environment is ready.
+description: Route a development intent to the right native proxymock command (regression gate, incident fix verification, load, chaos resilience, contract conformance) or to installed companion analysis skills (comparison, summarization, match-rate tuning, load), and get a repo into the traffic quality loop with one recording. Includes a doctor that checks the proxymock version, recordings, blueprints, runtime proxy support, and ports. Use when users ask how to test a change with recorded traffic, which proxymock command applies to a task, to set up the quality loop in a repo, or to check whether the environment is ready.
 argument-hint: <doctor|regression|verify-fix|load|chaos|contract|compare|summarize|tune|load-test> [args...]
 ---
 
@@ -54,13 +54,7 @@ knowing, and how to read the result. Start there, not with the script.
 | "Run this snapshot where it was recorded", replay in the cluster, watch a replay | (skill only) | **run-snapshot-replay** |
 | "Get this replay to pass", fix accuracy and mocks across re-runs | (skill only) | **tune-snapshot-replay** |
 
-The first five routes build and exec a native command. The last four dispatch
-the repo's own analysis skill scripts unchanged. `load` and `load-test` are
-both here on purpose: `load` builds the native load command, `load-test` runs
-the `proxymock-load-test` script, which adds its own SLO gating and summary
-file on top. The two "skill only" rows are not dispatcher routes: they can
-run in a cluster through Speedscale cloud and re-run replays, so
-`quality-loop.sh` does not wrap them.
+The first five routes build and exec a native command. The last four dispatch installed companion analysis scripts unchanged. `load` and `load-test` are both here on purpose: `load` builds the native load command, `load-test` runs the `proxymock-load-test` script, which adds its own SLO gating and summary file on top. The two "skill only" rows are not dispatcher routes: they can run in a cluster through Speedscale cloud and re-run replays, so `quality-loop.sh` does not wrap them.
 
 Tie-breakers:
 
@@ -82,58 +76,20 @@ Tie-breakers:
 
 ## One-time setup (add water)
 
-1. **Record once.** From the app's own directory run
-   `proxymock record -- <app command>`, then drive real traffic at it (the
-   repo's test driver, a curl pass over every endpoint, a browser session). In
-   this repo: `cd languages/go && proxymock record -- go run .` plus
-   `./shared/tests/run_tests.sh --recording` from the root.
-2. **Keep the recording.** Commit it as the baseline snapshot; RRPairs are
-   markdown and diff cleanly. This repo ships one at `proxymock/recording`.
-3. **Create the comparison baseline.** Run `proxymock replay` once against a
-   known-good build and keep its `--out` dir. From then on gate
-   baseline-relative, so the deterministic noise floor cannot false-positive.
-4. **Stage blueprints if the app has moving IDs** (rotating tokens, generated
-   order ids). See the next section — this is the step that silently costs you
-   the signal when it goes wrong.
+1. **Record representative traffic.** From the user's app directory, run `proxymock record -- <app command>` and exercise the app with its test driver, curl requests, or a browser session. Use an existing recording when the user supplies one.
+2. **Keep the recording.** Choose the recording directory in that app's `proxymock/` workspace and pass it explicitly with `--in`. Commit a suitable baseline when the project permits it.
+3. **Create the comparison baseline.** Replay against a known-good build and keep its `--out` directory. Later runs use `--baseline` and `--fail-on-new-mismatch` to detect new failures.
+4. **Stage blueprints for moving IDs.** Keep token and generated-ID chains in the app workspace's `proxymock/blueprints/` directory and confirm they run during replay.
 
 `quality-loop.sh doctor` verifies all of this and exits 0 healthy / 1 missing
 preconditions / 2 usage.
 
 ## Blueprints: anchoring, and the hostname trap
 
-- **Where they load from.** The workspace `proxymock/blueprints/` directory —
-  the parent of the recording dir — loads, and a `blueprints/` copy *inside*
-  `--in` loads too, because replay reads `--in` recursively.
-- **Workspace discovery is not reproducible across identical recordings under
-  different names.** Measured: a byte-identical copy of a recording, under a
-  different directory name in the same workspace beside the same
-  `blueprints/`, did not pick it up (checked repeatedly, and with the recording
-  renamed and renamed back). Whatever scopes the workspace lookup is narrower
-  than "the parent of `--in`". If a workspace blueprint does not load, put a
-  copy inside `--in`; that location loaded in every layout measured. Use that
-  as a local workaround only: this repo's blueprint ships at
-  `proxymock/blueprints/`, the workspace dir beside the recording, and a
-  shared committed blueprint should not be relocated to dodge the quirk.
-- **Confirm, do not assume**, with the `Loaded blueprint "<name>" from <path>`
-  line in the replay output. Never move a blueprint the log says is loading.
-  Blueprints in `~/.speedscale/data/transforms/` load globally on top of
-  either location and are not workspace state.
-- **The hostname trap.** Replay rewrites the recorded network address to the
-  `--test-against` target, so a blueprint filtering on `network_address` binds
-  itself to one spelling of that target. Measured on this lab's blueprint while
-  it filtered `network_address CONTAINS "localhost"`: `--test-against
-  localhost:8080` fired both chains, while `127.0.0.1:8080` **loaded the
-  blueprint and fired ZERO chains, with no warning** — same `Loaded blueprint`
-  line both times. Without chains firing, auth and moving-ID endpoints 401 and
-  regressions on their success paths are undetectable. Filter on
-  `detectedLocation` / `detectedCommand` and scope with `services`. A
-  loaded-but-inert blueprint is usually this, not a staging problem.
-- **`--require-blueprint <name>` is opt-in, not default.** On v2.5.814 it exits
-  0 and still writes `<out>/replay-verdict.json` when the blueprint loaded and
-  its chains ran; on an unresolvable name it exits 1 and writes **no verdict
-  file**. Gating on it trades the entire regression signal for a blueprint
-  warning. Cheaper evidence that a chain really ran: grep the replay output for
-  `smart_replace`.
+- **Keep blueprints in the app workspace.** Use the standard `proxymock/blueprints/` directory alongside the recording directories. Pass the app's recording with `--in`; keep `applications/` and `testconfigs/` in that same workspace when used. Do not copy blueprints into RRPair directories or depend on another repository's workspace documents.
+- **Confirm discovery and execution.** Check the `Loaded blueprint "<name>" from <path>` line and the transform-chain summary. If discovery fails, check the `--in` path and workspace layout before moving files.
+- **The hostname trap.** Replay rewrites the recorded network address to the `--test-against` target, so a blueprint filtering on `network_address` binds itself to one spelling of that target. For example, a blueprint that filters `network_address CONTAINS "localhost"`: `--test-against localhost:8080` fired both chains, while `127.0.0.1:8080` **loaded the blueprint and fired ZERO chains, with no warning**; same `Loaded blueprint` line both times. Without chains firing, auth and moving-ID endpoints 401 and regressions on their success paths are undetectable. Filter on `detectedLocation` / `detectedCommand` and scope with `services`. A loaded-but-inert blueprint is usually this, not a staging problem.
+- **`--require-blueprint <name>` is opt-in, not default.** On v2.5.814 it exits 0 and still writes `<out>/replay-verdict.json` when the blueprint loaded and its chains ran; on an unresolvable name it exits 1 and writes **no verdict file**. Gating on it trades the entire regression signal for a blueprint warning. Cheaper evidence that a chain really ran: grep the replay output for `smart_replace`.
 
 ## Shared gotchas (apply on every route)
 
@@ -194,23 +150,31 @@ preconditions / 2 usage.
   `proxy-out-port`, `health-port`, `app-health-endpoint`. `edit_rrpair` is
   body-only.
 
+Run commands from the user's application directory. Resolve bundled scripts relative to this `SKILL.md`; `SKILL_DIR` below is the absolute directory containing this skill, wherever it was installed. Set it to that location before using the examples:
+
+```bash
+SKILL_DIR="/absolute/path/to/quality-loop"
+```
+
 ## The dispatcher (optional)
 
 ```bash
-# is this repo in the loop, and is the environment ready?
-./skills/quality-loop/scripts/quality-loop.sh doctor
+# check the current app directory and environment
+bash "$SKILL_DIR/scripts/quality-loop.sh" doctor --root "$PWD"
 
 # builds and execs: proxymock replay --in ... --test-against ...
 #                     --baseline ... --fail-on-new-mismatch
-./skills/quality-loop/scripts/quality-loop.sh regression \
+bash "$SKILL_DIR/scripts/quality-loop.sh" regression \
   --in ./proxymock/recording --test-against http://localhost:8080 \
   --baseline ./regress-base
 
 # builds and execs: proxymock replay --in ... --verify-fix --expect ...
-./skills/quality-loop/scripts/quality-loop.sh verify-fix \
+bash "$SKILL_DIR/scripts/quality-loop.sh" verify-fix \
   --in ./incident/recording --test-against http://localhost:8080 \
   --expect '^/api/stats'
 ```
+
+The `compare`, `summarize`, `tune`, and `load-test` dispatcher routes require their companion skills installed alongside `quality-loop`. If a companion is installed elsewhere, invoke its script by its resolved absolute path. Native-command routes and `doctor` work without those companions.
 
 Every mode prints the command it is about to run to stderr, then execs it, so
 the output and exit code you see are proxymock's own. Extra flags are forwarded
@@ -238,18 +202,3 @@ busy ports — do not fail the check.
   captures nothing through the proxy.
 - **doctor: busy port warning**: fine when it is your app or an active mock;
   otherwise free the port.
-
-## Proof
-
-```bash
-./skills/quality-loop/scripts/prove-quality-loop.sh
-```
-
-This is the pack's single proof — a documented deviation from the repo's
-one-prove-per-skill convention, adopted because all five loop skills now run
-the same native binary and per-skill proofs would be five copies of the same
-assertions. It is hermetic: no cloud, no live downstream, no app build. It runs
-`doctor` against this repo (exit 0) and an empty dir (exit 1), checks the usage
-contract (exit 2), then exercises every documented native command against the
-committed `proxymock/recording` and asserts the exit-code contract for each
-mode.

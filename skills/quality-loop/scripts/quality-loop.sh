@@ -30,7 +30,7 @@ Native modes (build and exec one proxymock command; its exit code is yours):
 
 Any flag this script does not name is forwarded to proxymock unchanged.
 
-Routes to this repo's analysis skills (args pass through to their scripts):
+Routes to installed companion skills (args pass through to their scripts):
   compare | summarize | tune | load-test
 
   doctor [--root DIR]   preconditions and environment report
@@ -147,7 +147,7 @@ mode_load() {
   run "${cmd[@]}" ${rest[@]+"${rest[@]}"}
 }
 
-# --- routes to this repo's own analysis skills --------------------------------
+# --- routes to installed companion skills -----------------------------------
 
 route_script() {
   case "$1" in
@@ -264,7 +264,7 @@ cmd_doctor() {
     echo "info node: not present (only needed for Node apps)"
   fi
 
-  # default ports: 8080 (lab app), 4140 (proxymock proxy-out)
+  # default ports: 8080 (app), 4140 (proxymock proxy-out)
   if command -v lsof >/dev/null 2>&1; then
     local port pid
     for port in 8080 4140; do

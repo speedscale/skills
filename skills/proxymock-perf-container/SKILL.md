@@ -19,9 +19,7 @@ proxymock replay \
 
 **Requires proxymock v2.5.814 or newer.**
 
-There is no CPU sampler in this repo any more. Judging the result honestly is a
-reading skill, and the rest of this document is that skill. The measured
-thresholds below are the whole product.
+Use the native replay metrics and CPU attribution to judge whether the user's app or the test harness limits throughput.
 
 ## Works with your stack (no bash required)
 
@@ -93,20 +91,9 @@ long-lived app under a short burst (measured: an app serving 4k rps read 1%).
 
 ## What comparisons are valid
 
-- **Within one run: yes.** Repeat samples at a fixed VU level in the same
-  session spread about **1%**. Take several, let the worst one gate, and that
-  comparison is sound. This is what any margin setting is actually covering.
-- **Across runs on a contended host: no.** The same VU level against the same
-  build measured **9,067 rps and 11,597 rps** on separate runs — **27% apart**
-  — while within-run spread stayed at ~1%. No margin rescues that: 30% hides
-  real regressions, 10% fails runs that changed nothing. Re-establish the
-  baseline on the host you are gating on, in the same session, and compare
-  against that.
-- **Prefer efficiency for anything that travels.** A raw rps ceiling is a fact
-  about this host. **rps per app-core** survives a move to a sized container:
-  measured on this lab's app it held between **7,800 and 9,600 rps per
-  app-core from VU 1 to VU 50** (~8,600 typical), so a 5,000 rps budget needs
-  roughly 0.6 app-cores.
+- **Within one run: yes.** Repeat samples at a fixed VU level in the same session spread about **1%**. Take several, let the worst one gate, and that comparison is sound. This is what any margin setting is actually covering.
+- **Across runs on a contended host: no.** The same VU level against the same build measured **9,067 rps and 11,597 rps** on separate runs; **27% apart**; while within-run spread stayed at ~1%. No margin rescues that: 30% hides real regressions, 10% fails runs that changed nothing. Re-establish the baseline on the host you are gating on, in the same session, and compare against that.
+- **Prefer efficiency for anything that travels.** A raw rps ceiling is a fact about this host. **rps per app-core** survives a move to a sized container: measured on one test app it held between **7,800 and 9,600 rps per app-core from VU 1 to VU 50** (~8,600 typical), so a 5,000 rps budget needs roughly 0.6 app-cores.
 
 ## What the latency numbers mean
 
@@ -136,17 +123,3 @@ harness-bound rungs is a measurement of the generator.
   regressions.
 - **proxymock-chaos-mock**: drive this load while the downstream is slow or
   flaky.
-
-## Proof
-
-```bash
-./skills/quality-loop/scripts/prove-quality-loop.sh
-```
-
-One shared proof covers this pack (a documented deviation from the repo's
-one-prove-per-skill convention: every skill runs the same native binary now).
-The case covering this skill runs the documented load command against a stub of
-the committed recording and asserts exit 0, plus a `--fail-if` gate that trips
-and exits 1. The honesty thresholds above cannot be proven hermetically — they
-fire on host saturation — which is exactly why they are documented as reading
-rules rather than automated into a gate that would lie on a quiet CI box.

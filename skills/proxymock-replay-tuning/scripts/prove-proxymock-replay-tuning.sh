@@ -36,10 +36,9 @@ wait_url() {
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 skill_dir="$(cd "$script_dir/.." && pwd)"
-# The proofs run against the fixture recording committed in github.com/speedscale/mock-lab.
-# When this skill lives inside that repo the fixture is two levels up; otherwise point
-# MOCK_LAB_DIR at a checkout.
-repo_root="${MOCK_LAB_DIR:-$(cd "$skill_dir/../.." && pwd)}"
+# Maintainer proofs use the separate mock-lab checkout, never the caller's app.
+: "${MOCK_LAB_DIR:?Set MOCK_LAB_DIR to a mock-lab checkout for maintainer proofs}"
+repo_root="$(cd "$MOCK_LAB_DIR" && pwd -P)"
 if [[ ! -d "$repo_root/proxymock/recording" ]]; then
   echo "mock-lab fixture not found at $repo_root; set MOCK_LAB_DIR to a checkout of https://github.com/speedscale/mock-lab" >&2
   exit 1
