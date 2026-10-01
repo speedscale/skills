@@ -47,7 +47,7 @@ ChatGPT on the web and mobile cannot install these skills directly from a GitHub
 | --- | --- |
 | Claude Code plugin | `/plugin marketplace add speedscale/skills` then `/plugin install speedscale@speedscale-skills` |
 | Any agent, via the skills CLI | `npx skills add speedscale/skills` |
-| Already have proxymock | `proxymock mcp install --yes` (Claude Code) or `proxymock mcp skills export --dir <your skills dir>` |
+| Already have proxymock | `proxymock mcp install --yes` installs every skill for Claude Code; `proxymock mcp skills export --dir <your skills dir>` for any other agent |
 | Manual | copy `skills/<name>/` into your agent's skills directory |
 
 ## Skills
@@ -56,17 +56,18 @@ ChatGPT on the web and mobile cannot install these skills directly from a GitHub
 | --- | --- |
 | [`install-speedscale`](skills/install-speedscale/SKILL.md) | End-to-end install: CLIs, prerequisites, API key, operator Helm chart, verification, MCP wiring, upgrades, uninstall |
 | [`analyze-replay-report`](skills/analyze-replay-report/SKILL.md) | Explain a cloud report or a local proxymock replay run: verdict, the first failing response, root-cause bucket, and next steps |
-| [`improve-mock-match-rate`](skills/improve-mock-match-rate/SKILL.md) | Pull a replay report and tune mock blueprints until the projected match rate stops improving |
+| [`record-traffic`](skills/record-traffic/SKILL.md) | Record a service's inbound and outbound traffic, databases included, by wrapping it with `proxymock record`, and confirm every dependency was captured |
+| [`improve-mock-match-rate`](skills/improve-mock-match-rate/SKILL.md) | Tune the **mocks** for any technology (HTTP, gRPC, SQL, Redis, Kafka and more): offline fixes to a projected match rate, then an optional re-run that confirms them, including SQL reads served the wrong recorded row |
 | [`run-snapshot-replay`](skills/run-snapshot-replay/SKILL.md) | Run a snapshot or recording as a replay, locally or in the cloud, defaulting to where it was recorded, and follow it to a verdict |
-| [`tune-snapshot-replay`](skills/tune-snapshot-replay/SKILL.md) | Loop until a replay is accurate and fully mocked: measure, change one thing, re-run, keep or revert, with progress kept on disk |
+| [`tune-snapshot-replay`](skills/tune-snapshot-replay/SKILL.md) | Tune the **tests**: loop until a replay's responses are accurate, changing one thing per run and keeping or reverting it, with progress on disk. Hands mock problems to `improve-mock-match-rate` |
 
 ### proxymock quality loop
 
-Skills for testing your own service with your own recorded traffic. Run proxymock from the application's directory and pass the recording and target explicitly. These workflows use the local CLI and require no Speedscale Cloud account or mock-lab checkout. Use proxymock v2.5.814 or newer; `quality-loop` includes a doctor that checks the app's environment.
+Skills for testing your own service with your own recorded traffic. Run proxymock from the application's directory and pass the recording and target explicitly. These workflows use the local CLI and require no Speedscale Cloud account or mock-lab checkout. Use proxymock v2.5.1109 or newer; `quality-loop` includes a doctor that checks the app's environment.
 
 Start with `quality-loop` when you need help choosing a command. For bundled helpers, resolve the script relative to the installed skill's `SKILL.md`, then invoke it by its absolute path while staying in your app directory. The install location may be outside your project.
 
-For an optional runnable example, try [mock-lab](https://github.com/speedscale/mock-lab). Maintainer proof scripts use its fixtures; see [CONTRIBUTING.md](CONTRIBUTING.md) for that separate workflow.
+For a runnable example, try the tutorial app in [mock-lab](https://github.com/speedscale/mock-lab/tree/main/tutorial).
 
 | Skill | What it does | Wraps |
 | --- | --- | --- |
@@ -79,15 +80,10 @@ For an optional runnable example, try [mock-lab](https://github.com/speedscale/m
 | [`proxymock-perf-container`](skills/proxymock-perf-container/SKILL.md) | Load-test one service with its downstream mocked, and judge the number honestly | `proxymock replay --vus --for --load-test` |
 | [`proxymock-compare-results`](skills/proxymock-compare-results/SKILL.md) | Deep before/after comparison of two replay or recording sets; JSON, HTML, and an LLM digest | `proxymock report --baseline`, `proxymock drift` |
 | [`proxymock-summarize-recording`](skills/proxymock-summarize-recording/SKILL.md) | Summarize a recording: hosts, endpoints, methods, status mix, volume | `proxymock report --format prompt` |
-| [`proxymock-replay-tuning`](skills/proxymock-replay-tuning/SKILL.md) | Replay outbound pairs against a local mock and report HIT/MISS/PASSTHROUGH to restore a stale mock set | `tune-proxymock-replay.sh` |
 
 ## How this repo is maintained
 
-`install-speedscale` and `improve-mock-match-rate` are mirrored from the
-Speedscale monorepo on every proxymock release (`proxymock mcp skills export`),
-so they always match what the shipped binary installs; fixes to those two are
-applied upstream and flow back on the next release. The quality-loop skills are
-maintained here directly, so pull requests against them merge as-is.
+Every skill here ships inside proxymock and is mirrored from the Speedscale monorepo (`speedctl/mcp/skills/`) on each proxymock release by `proxymock mcp skills export`, so this repo always matches what the shipped binary installs. `skills/.proxymock-managed` lists the mirrored skills. Change a skill in the monorepo; a pull request that edits `skills/` here is overwritten by the next release. The README, the plugin manifests and the CI check are maintained here. The plugin discovers every directory under `skills/`, so adding or removing a skill needs no manifest change. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Docs: https://docs.speedscale.com · Community: https://slack.speedscale.com ·
 Support: support@speedscale.com
