@@ -65,11 +65,27 @@ statement the recording never saw gets a wrong answer or none, the app returns
 fast errors, and after a miss the Postgres mock can desync and wedge the pool,
 so the load numbers describe the failure, not the slowdown. To measure it:
 
-1. Mock only the HTTP dependencies and keep the real database:
-   `proxymock mock --in proxymock/recorded-<name>/<http-host-dir> --no-out -- <app>`
-   with the app pointed at the real database port. Passing only the HTTP host's
-   directory keeps `mock` from binding the database port.
-2. Load it at the same shape for both builds (or both modes).
+1. Mock the HTTP dependencies and keep the real database. Pass the **whole
+   recording** with its `--map`, and point the app straight at the real
+   database:
+
+   ```bash
+   DATABASE_URL=postgres://user:pass@localhost:5432/db?sslmode=disable \
+   proxymock mock --in proxymock/recorded-<name> --map 15432=postgres://localhost:5432 \
+     --no-out --app-health-endpoint /healthz -- <app start command>
+   ```
+
+   The `--map` port is then unused; it only keeps `mock` from binding the
+   database's own port. Do not narrow `--in` to the HTTP host's directory
+   (`<recording>/<host>`): the workspace blueprints do not load from there, so
+   their fixes (an ignored `ts` query parameter, say) are not applied and every
+   call misses the mock.
+2. Load it at the same shape for both builds (or both modes). An app that
+   writes to its database changes its own load as it runs: each `POST` adds
+   rows the next list query reads. Reset the tables before each run (for
+   example `TRUNCATE` the tables the recorded writes touch) and use a fixed
+   number of passes (`--times N`) rather than a duration, so both runs see the
+   same data and send the same requests.
 3. Explain any latency jump by comparing **statements per inbound request**
    between the two runs: record a short run of each under `proxymock record
    --map ...`, run `proxymock-summarize-recording` on both, and divide the
