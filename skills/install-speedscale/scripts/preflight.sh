@@ -80,7 +80,7 @@ case ":$PATH:" in *":$SS_HOME:"*) say "path_has_speedscale_home: yes" ;; *) say 
 hdr "speedscale auth"
 if [ -f "$SS_HOME/config.json" ]; then say "config: $SS_HOME/config.json"
 elif [ -f "$SS_HOME/config.yaml" ]; then say "config: $SS_HOME/config.yaml"
-else say "config: none (run init in Phase 3)"; fi
+else say "config: none (run proxymock init)"; fi
 [ -n "${SPEEDSCALE_API_KEY:-}" ] && say "SPEEDSCALE_API_KEY: set (value not shown)" || say "SPEEDSCALE_API_KEY: not set"
 [ -n "${SPEEDSCALE_APP_URL:-}" ] && say "SPEEDSCALE_APP_URL: $SPEEDSCALE_APP_URL"
 if have speedctl && { [ -f "$SS_HOME/config.json" ] || [ -f "$SS_HOME/config.yaml" ]; }; then

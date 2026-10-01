@@ -1,204 +1,117 @@
 ---
 name: quality-loop
-description: Route a development intent to the right native proxymock command (regression gate, incident fix verification, load, chaos resilience, contract conformance) or to installed companion analysis skills (comparison, summarization, match-rate tuning, load), and get a repo into the traffic quality loop with one recording. Includes a doctor that checks the proxymock version, recordings, blueprints, runtime proxy support, and ports. Use when users ask how to test a change with recorded traffic, which proxymock command applies to a task, to set up the quality loop in a repo, or to check whether the environment is ready.
-argument-hint: <doctor|regression|verify-fix|load|chaos|contract|compare|summarize|tune|load-test> [args...]
+description: The entry point for testing a service with recorded traffic using proxymock. Routes an intent to the right skill (record, run a replay, tune the tests, tune the mocks, regression gate, load test, verify a fix, chaos, contract, compare), defines the shared terms (HIT/MISS/PASSTHROUGH, match rate, accuracy, verdict), walks the "do it to my own service" flow, and includes a doctor that checks the environment. Use when users ask how to test a change with recorded traffic, which proxymock skill or command applies, to set up the loop in a repo, to test their own service, or whether the environment is ready.
+argument-hint: <doctor|regression|verify-fix|load|chaos|contract|compare|summarize|load-test> [args...]
 ---
 
 # proxymock Quality Loop
 
-The loop: capture real traffic once -> keep it as a snapshot (RRPair files) ->
-run your code against the snapshot -> act on the diff. One snapshot feeds every
-tier: the same recording is the regression gate's input, the mock's source
-data, the load test's request script, and the chaos variant's raw material.
-Nothing below asks for a second capture.
+The loop: record real traffic once, keep it as a snapshot (RRPair files), run
+your code against the snapshot, act on the diff. One recording feeds every
+tier: the regression gate's input, the mock's data, the load test's request
+script, and the chaos variant's raw material. Nothing below asks for a second
+capture.
 
-**Requires proxymock v2.5.814 or newer.** Every fact in this pack was measured
-on that release. Older builds differ on connection faults, native body scoring,
-`--require-blueprint`, `proxymock validate`, and process teardown, so the
-guidance here will mislead you on them. `quality-loop.sh doctor` warns when the
-installed CLI is older.
-
-## The native commands are the product
-
-proxymock does the work. Each intent below is one CLI invocation, and its exit
-code is the CI contract. The dispatcher script in this skill is optional
-convenience: it builds the same line, execs it, and passes the exit code
-straight through — no verdict of its own, no summary file of its own, no
-reformatting of proxymock's output. Anyone on k6, bruno, postman-cli, or no
-shell script at all runs the raw command and gets the identical result.
-
-| Intent | Native command | Exits |
-| --- | --- | --- |
-| Did my change break anything? | `proxymock replay --in <rec> --test-against <url> --baseline <prior> --fail-on-new-mismatch` | 0 pass / 3 new mismatch |
-| Is the incident fixed? | `proxymock replay --in <incident> --test-against <url> --verify-fix [--expect <re>]` | 0 fixed / 2 still reproduces / 3 collateral |
-| Does the dependency match its spec? | `proxymock validate --spec <spec> --in <rrpairs>` | 0 conformant / 2 violations / 3 no spec route |
-| What does a lying downstream do to my app? | `proxymock mock --in <rec> --fault '<pat>:<actions>' [-- <app cmd>]` | runs until stopped |
-| What can this service sustain? | `proxymock replay --in <rec> --test-against <url> --vus N --for D --load-test` | 0 / 1 on `--fail-if` |
-
-Each skill's SKILL.md carries the full exit-code table, the flags worth
-knowing, and how to read the result. Start there, not with the script.
+**Requires proxymock v2.5.814 or newer.** Older builds differ on connection
+faults, body scoring, `--require-blueprint`, `proxymock validate` and process
+teardown. Where a skill says "newer proxymock", the feature is recent: check
+`proxymock <command> --help` before relying on it.
 
 ## Routing
 
-| Intent sounds like | Route | Where the detail lives |
-| --- | --- | --- |
-| "Did my change break anything?", pre-ship check, CI gate | `regression` | **proxymock-regression-test** |
-| "Prod incident: reproduce it and prove the fix" | `verify-fix` | **proxymock-verify-fix** |
-| "What can this service sustain?", load numbers | `load` | **proxymock-perf-container** |
-| "How does it behave when the downstream misbehaves?" | `chaos` | **proxymock-chaos-mock** |
-| "Does my dependency match its spec?" | `contract` | **proxymock-contract-test** |
-| "What changed between these two runs?" | `compare` | **proxymock-compare-results** |
-| "What is in this recording?" | `summarize` | **proxymock-summarize-recording** |
-| "Replay misses the mock", match-rate tuning | `tune` | **proxymock-replay-tuning** |
-| "Flat load run with SLO gates and a summary file" | `load-test` | **proxymock-load-test** |
-| "Run this snapshot where it was recorded", replay in the cluster, watch a replay | (skill only) | **run-snapshot-replay** |
-| "Get this replay to pass", fix accuracy and mocks across re-runs | (skill only) | **tune-snapshot-replay** |
-
-The first five routes build and exec a native command. The last four dispatch installed companion analysis scripts unchanged. `load` and `load-test` are both here on purpose: `load` builds the native load command, `load-test` runs the `proxymock-load-test` script, which adds its own SLO gating and summary file on top. The two "skill only" rows are not dispatcher routes: they can run in a cluster through Speedscale cloud and re-run replays, so `quality-loop.sh` does not wrap them.
+| Intent sounds like | Skill |
+| --- | --- |
+| "Record traffic", "I need a recording" | **record-traffic** |
+| "What is in this recording?" | **proxymock-summarize-recording** |
+| "Run this recording or snapshot", replay it locally or in the cluster | **run-snapshot-replay** |
+| "Replayed responses differ", "get the replay to pass", tests fail on IDs, timestamps, tokens | **tune-snapshot-replay** (the tests) |
+| Mock misses, `MISS`, passthrough, low match rate, any protocol | **improve-mock-match-rate** (the mocks) |
+| "Did my change break anything?", CI gate | **proxymock-regression-test** |
+| "What can this service sustain?", load numbers, SLO gates | **proxymock-load-test**, and **proxymock-perf-container** to judge the number |
+| "Prod incident: reproduce it and prove the fix" | **proxymock-verify-fix** |
+| "How does it behave when the downstream misbehaves?" | **proxymock-chaos-mock** |
+| "Does my dependency match its spec?" | **proxymock-contract-test** |
+| "What changed between these two runs?" | **proxymock-compare-results** |
+| "Why did this report fail?" | **analyze-replay-report** |
 
 Tie-breakers:
 
-- **regression vs verify-fix** is decided by which recording you hold. A
-  healthy recording plus "did I break it" is `regression`. An incident capture
-  (recorded errors are the truth) plus "is it fixed" is `verify-fix`.
-- **contract vs regression** is decided by which side of the boundary. A
-  dependency with a spec is `contract`; your own app, whose contract IS the
-  recording, is `regression`.
-- **compare / summarize / tune** are analysis routes over result or recording
-  dirs; they do not drive traffic at your app.
-- **regression vs run-snapshot-replay** is decided by where the target is.
-  A local app at a known URL is `regression`. A snapshot to run where it was
-  recorded, often a cluster workload, is **run-snapshot-replay**.
-- **tune vs tune-snapshot-replay** is decided by what is wrong. Mock misses
-  in one local run are `tune` (or **improve-mock-match-rate** offline).
-  Replayed responses that differ, or anything needing re-runs to converge, is
-  **tune-snapshot-replay**.
+- **Tests vs mocks** is decided by which side is wrong. Responses from the app
+  differ from the recording: `tune-snapshot-replay`. The app's outbound calls
+  are not answered by the mocks: `improve-mock-match-rate`. Each owns its side
+  and hands the other side over.
+- **regression vs verify-fix** is decided by the recording. A healthy recording
+  plus "did I break it" is `regression`. An incident capture (recorded errors
+  are the truth) plus "is it fixed" is `verify-fix`.
+- **contract vs regression** is decided by the boundary. A dependency with a
+  spec is `contract`; your own app, whose contract IS the recording, is
+  `regression`.
+- **regression vs run-snapshot-replay** is decided by the target. A local app at
+  a known URL that must pass a gate is `regression`. A snapshot to run where it
+  was recorded, often a cluster workload, is `run-snapshot-replay`.
 
-## One-time setup (add water)
+## Terms (used the same way in every skill)
 
-1. **Record representative traffic.** From the user's app directory, run `proxymock record -- <app command>` and exercise the app with its test driver, curl requests, or a browser session. Use an existing recording when the user supplies one.
-2. **Keep the recording.** Choose the recording directory in that app's `proxymock/` workspace and pass it explicitly with `--in`. Commit a suitable baseline when the project permits it.
-3. **Create the comparison baseline.** Replay against a known-good build and keep its `--out` directory. Later runs use `--baseline` and `--fail-on-new-mismatch` to detect new failures.
-4. **Stage blueprints for moving IDs.** Keep token and generated-ID chains in the app workspace's `proxymock/blueprints/` directory and confirm they run during replay.
+| Term | Meaning |
+| --- | --- |
+| **HIT / MISS / PASSTHROUGH** | What a mock did with one outbound call. HIT: a recorded request matched and the mock answered. MISS: the mock covers that host but no recorded request matched (older output and cloud reports say `NO_MATCH`; a HIT was `MATCH`). PASSTHROUGH: nothing mocked it, so it reached the real service. |
+| **Match rate** | HIT / (HIT + MISS + PASSTHROUGH). Three flavors: **measured** is counted from a real run of the app behind the mock (`proxymock replay score`, `matchRate.rate`); **projected** is the offline estimate after a blueprint edit, before any re-run; **report** is the analysis's rate from replaying the recording's own outbound requests at the mock, which is a ceiling and can read 100% while the live app's measured rate is lower. Quote measured when you have it. |
+| **Accuracy** | Share of replayed pairs whose response matched the recorded one, scored by proxymock's built-in status and body rules (`accuracy.rate`). |
+| **passAssertPct** | Percent of test-config assertions that passed. It exists only when a `--test-config` with assertions ran, and is stricter than accuracy: the built-in `standard` config asserts headers and cookies too. |
+| **Verdict** | `replay-verdict.json`: the per-pair pass or mismatch result of the built-in scoring, plus new mismatches against a `--baseline`. |
+| **Exit code** | Without `--test-config`, the verdict decides it. With one, that config's goals (usually `passAssertPct >= 100`) decide it, and the verdict can say pass while the run exits nonzero. |
 
-`quality-loop.sh doctor` verifies all of this and exits 0 healthy / 1 missing
-preconditions / 2 usage.
+## Do it to your own service
 
-## Blueprints: anchoring, and the hostname trap
+The flow for "set this up for my service". Do each step with its skill, and stop
+to report if one fails.
 
-- **Keep blueprints in the app workspace.** Use the standard `proxymock/blueprints/` directory alongside the recording directories. Pass the app's recording with `--in`; keep `applications/` and `testconfigs/` in that same workspace when used. Do not copy blueprints into RRPair directories or depend on another repository's workspace documents.
-- **Confirm discovery and execution.** Check the `Loaded blueprint "<name>" from <path>` line and the transform-chain summary. If discovery fails, check the `--in` path and workspace layout before moving files.
-- **The hostname trap.** Replay rewrites the recorded network address to the `--test-against` target, so a blueprint filtering on `network_address` binds itself to one spelling of that target. For example, a blueprint that filters `network_address CONTAINS "localhost"`: `--test-against localhost:8080` fired both chains, while `127.0.0.1:8080` **loaded the blueprint and fired ZERO chains, with no warning**; same `Loaded blueprint` line both times. Without chains firing, auth and moving-ID endpoints 401 and regressions on their success paths are undetectable. Filter on `detectedLocation` / `detectedCommand` and scope with `services`. A loaded-but-inert blueprint is usually this, not a staging problem.
-- **`--require-blueprint <name>` is opt-in, not default.** On v2.5.814 it exits 0 and still writes `<out>/replay-verdict.json` when the blueprint loaded and its chains ran; on an unresolvable name it exits 1 and writes **no verdict file**. Gating on it trades the entire regression signal for a blueprint warning. Cheaper evidence that a chain really ran: grep the replay output for `smart_replace`.
+1. **Read the repo.** Find the run command, the port, the outbound HTTP hosts and
+   any databases, and how the project already generates traffic. Run
+   `scripts/quality-loop.sh doctor` to check proxymock, ports and Node support.
+2. **Record one run** with [`record-traffic`](../record-traffic/SKILL.md).
+   Local first. Stop only when inbound traffic and every outbound host and
+   database are in the recording.
+3. **Make the replay trustworthy.** Replay it once
+   ([`run-snapshot-replay`](../run-snapshot-replay/SKILL.md)). If responses
+   differ on IDs or timestamps, run `tune-snapshot-replay`; if mocks miss, run
+   `improve-mock-match-rate`.
+4. **Produce a first regression gate** with
+   [`proxymock-regression-test`](../proxymock-regression-test/SKILL.md): app
+   under mocks, baseline replay on the current code, then the gated command CI
+   can run. Commit the recording, blueprints and test configs only after
+   checking they hold no secrets.
+5. **Offer the next tier**: a load test, a chaos run, or the Kubernetes version
+   when it is available.
 
-## Shared gotchas (apply on every route)
+Where things live: recordings in `proxymock/recorded-<name>/`; every replay and
+mock run in `proxymock/results/<name>/`; tuning state in `proxymock/blueprints/`,
+`proxymock/testconfigs/` and `proxymock/tuning/`. Only files under the
+workspace's `proxymock/` apply to a local run: nothing under `~/.speedscale` is
+applied to a local replay.
 
-- **Gate on the verdict, never on transport metrics.** `requests.failed` stays
-  0 for a status regression: a 201 that becomes a 200 still completes the HTTP
-  exchange. The per-pair verdict is the datum.
-- **Body scoring is native and default.** Pairs carry `bodyMatch` and
-  `bodyChanges[]` of `{severity, kind, endpoint, location, baseline,
-  candidate}`. `--ignore-body-changes` restores status-only scoring.
-- **Baseline masking compares change sets.** A pair that failed in the baseline
-  is exempt from *that same failure* only. Verified: an identical failure stays
-  masked (exit 0); a different failure on the same pair is caught as a new
-  mismatch (exit 3).
-- **Volatile suppression is by FIELD NAME, undocumented, and unstable.**
-  `order_id` and an ISO-8601 `created` were suppressed; `total`, `status`,
-  `project`, `expires_in` were scored — and a later round measured the opposite
-  for a live `order-<16hex>`. Gate on a baseline, never on a raw zero.
-- **Recorded-error-reproduced is a match PASS.** Match compares observed
-  against recorded, so faithfully replaying a captured 500 passes. This is why
-  verify-fix inverts: an all-match run means the bug still reproduces.
-- **Incident captures lack the fixed path's downstream traffic**, because the
-  buggy handler usually errored before calling its dependency. Union the
-  incident capture with a healthy recording (repeated `--in`) when mocking the
-  fixed build's downstream, or declare the network dependency.
-- **`proxymock mock` needs an explicit `--in`.** It does not discover a
-  recording from cwd. Repeated `--in` unions mock sources.
-- **Fault patterns are matched against the bare path and host+path only** —
-  no scheme, port, or method — so a plausible full-URL pattern matches nothing.
-  proxymock warns, but when it WRAPS an app the warning goes to
-  `proxymock.log`, not your terminal.
-- **`--fault` is startup-only.** Only mock DATA hot-reloads
-  (`--mock-reload-interval`). Restarting a mock that WRAPS the app restarts the
-  app, so run recovery scenarios un-wrapped with the app started separately.
-- **`connection=drop` returns a truncated 200** below its own
-  `Content-Length`, which a status-only assertion scores as a pass. `refuse`
-  and `reset` are indistinguishable from inside the app; `stall` needs a
-  client-side timeout or it hangs.
-- **`--response-selection random` is weighted by copy count and noisy** (15/40
-  against a 50% expectation). When the failure ratio IS the measurement, use
-  `rate=F/N` or round-robin.
-- **`validate` treats undocumented response fields as violations**, with no
-  flag to downgrade them. Filter or expect it.
-- **A malformed RRPair is skipped silently.** The rest of the directory still
-  serves, but the warning only appears at `-v -v`, so a bad edit degrades to a
-  mysteriously missing endpoint rather than a loud failure.
-- **Two concurrent proxymock runs corrupt each other.** Every command ingests
-  its `--in` into `<speedscale-home>/data/snapshots/` under one fixed local
-  snapshot id, so a second process with a different `--in` overwrites the
-  first's `raw.jsonl` and the loser replays the WINNER's recording. It surfaces
-  loudly as `references refUuid <uuid> not found in --in` with **no verdict
-  file written**, and quietly as a verdict scored against the wrong recording.
-  Give each run its own home when anything else on the machine might be running
-  proxymock — copy `~/.speedscale/config.yaml` (and `certs/`, or the run mints
-  a CA nothing trusts) into a private dir and pass
-  `--config <that>/config.yaml`. Global `transforms/` blueprints still load.
-- **MCP parity.** `mock_server_start` exposes `fault`, `mock-timing`,
-  `mock-reload-interval` and `response-selection`. Still absent:
-  `proxy-out-port`, `health-port`, `app-health-endpoint`. `edit_rrpair` is
-  body-only.
+## Reference
 
-Run commands from the user's application directory. Resolve bundled scripts relative to this `SKILL.md`; `SKILL_DIR` below is the absolute directory containing this skill, wherever it was installed. Set it to that location before using the examples:
+[references/gotchas.md](references/gotchas.md) holds the native command for each
+intent (exit codes are the CI contract), the gotchas that apply on several
+routes, and the dispatcher and `doctor` usage. Read it when a result surprises
+you.
 
-```bash
-SKILL_DIR="/absolute/path/to/quality-loop"
+## Result
+
+End with exactly this block:
+
+```
+### Result
+- **Ran:** what ran, against what
+- **Outcome:** pass, fail, or the headline number
+- **Numbers:** the 2 to 4 metrics that matter for this skill
+- **Artifacts:** paths the run wrote
+- **Next:** one suggested next step, naming the skill or giving a prompt
 ```
 
-## The dispatcher (optional)
-
-```bash
-# check the current app directory and environment
-bash "$SKILL_DIR/scripts/quality-loop.sh" doctor --root "$PWD"
-
-# builds and execs: proxymock replay --in ... --test-against ...
-#                     --baseline ... --fail-on-new-mismatch
-bash "$SKILL_DIR/scripts/quality-loop.sh" regression \
-  --in ./proxymock/recording --test-against http://localhost:8080 \
-  --baseline ./regress-base
-
-# builds and execs: proxymock replay --in ... --verify-fix --expect ...
-bash "$SKILL_DIR/scripts/quality-loop.sh" verify-fix \
-  --in ./incident/recording --test-against http://localhost:8080 \
-  --expect '^/api/stats'
-```
-
-The `compare`, `summarize`, `tune`, and `load-test` dispatcher routes require their companion skills installed alongside `quality-loop`. If a companion is installed elsewhere, invoke its script by its resolved absolute path. Native-command routes and `doctor` work without those companions.
-
-Every mode prints the command it is about to run to stderr, then execs it, so
-the output and exit code you see are proxymock's own. Extra flags are forwarded
-verbatim. `PROXYMOCK=/path/to/proxymock` overrides the binary.
-
-`doctor [--root DIR]` reports proxymock presence and version (warning below
-v2.5.814), RRPair recording directories with pair counts, blueprint staging per
-recording, Node proxy support (`fetch` ignores proxy env vars before 22.21/24;
-on supported versions set `NODE_USE_ENV_PROXY=1` plus `NODE_EXTRA_CA_CERTS`),
-and whether ports 8080 and 4140 are free. Exit `0` healthy, `1` with a
-`MISSING:` list, `2` on usage errors. Warnings — missing blueprints, old Node,
-busy ports — do not fail the check.
-
-## Interpretation
-
-- **doctor: MISSING proxymock**: install the CLI; every route needs it.
-- **doctor: version warning**: the routes still run, but this pack's documented
-  behavior was measured on v2.5.814. Upgrade before trusting a gotcha above.
-- **doctor: MISSING recording dirs**: the repo is not in the loop yet. Run the
-  one-time setup; nothing here works without a snapshot.
-- **doctor: blueprint warning**: only matters if that app has moving IDs. When
-  it does, expect 401/404 noise on replay and an undetectable-regression blind
-  spot on those endpoints until a blueprint is staged and confirmed loading.
-- **doctor: Node version warning**: recording a Node app on that runtime
-  captures nothing through the proxy.
-- **doctor: busy port warning**: fine when it is your app or an active mock;
-  otherwise free the port.
+For this skill: **Ran** is the flow and steps completed (or the `doctor` run).
+**Outcome** is `ready`, `gate created`, or the step that stopped. **Numbers** are
+pairs recorded, replay accuracy or measured match rate, and the gate's baseline
+verdict. **Artifacts** are the recording, baseline and gate command. **Next** is
+the next tier, or the skill for the step that failed.

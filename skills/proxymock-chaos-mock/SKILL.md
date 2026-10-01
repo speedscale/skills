@@ -10,7 +10,7 @@ argument-hint: "--in <recording-dir> --fault '<regexp>:<action>=<value>' [-- <ap
 Turn a recording into a lying downstream. One native command:
 
 ```bash
-proxymock mock --in ./proxymock/recording \
+proxymock mock --in ./proxymock/recorded-<name> \
   --fault '/v1/projects:status=503' \
   -- <your app command>
 ```
@@ -25,17 +25,17 @@ The faults are process flags, not data. The recording is served as-is: no copy, 
 
 ```bash
 # standalone: start the lying downstream, start your app separately against it
-proxymock mock --in ./proxymock/recording --proxy-out-port 4140 \
+proxymock mock --in ./proxymock/recorded-<name> --proxy-out-port 4140 \
   --fault '/v1/projects:status=429,header=Retry-After:30'
 
 # or let proxymock wrap the app so the proxy env is wired for you
-proxymock mock --in ./proxymock/recording \
+proxymock mock --in ./proxymock/recorded-<name> \
   --fault '/v1/projects:connection=drop' -- go run .
 ```
 
-`mock` runs until you stop it; there is no pass/fail exit code to gate on. The gate is whatever you assert about your app *while* it serves, so pair it with `proxymock replay` (proxymock-regression-test) or your own test driver. The optional `quality-loop.sh chaos` is optional convenience that builds this exact line; the native command is the contract.
+`mock` runs until you stop it; there is no pass/fail exit code to gate on. The gate is whatever you assert about your app *while* it serves, so pair it with `proxymock replay` (proxymock-regression-test) or your own test driver. The bundled `quality-loop.sh chaos` is optional convenience that builds this exact line; the native command is the contract.
 
-`proxymock mock` **requires an explicit `--in`**. It does not discover a recording from cwd. Repeated `--in` unions several recordings into one mock source set.
+An app with a database needs the same `--map` the recording used. `proxymock mock` **requires an explicit `--in`**. It does not discover a recording from cwd. Repeated `--in` unions several recordings into one mock source set.
 
 ## Fault syntax
 
@@ -62,40 +62,31 @@ Responses carrying a `status=`, `header=`, `body=` or `latency=` fault are tagge
 
 **A pattern that matches nothing warns where you are not looking.** proxymock prints `Warning: --fault pattern "..." matches no mock data, so it will never fire`, but when it **wraps your app**, its own output goes to `proxymock.log`, not your terminal. Standalone mocks print it. Read the log before believing an injected fault ran.
 
-## What each connection fault looks like
+## Behavior worth knowing (details in the reference)
 
-All four fire over **HTTP/2** as well as HTTP/1.1, and stay scoped to the endpoints the pattern matches: measured against an HTTP/2 test fixture, `/v1/projects` failed under every action while an untargeted `/v1/categories` kept its exact full 200 body. What differs is how the failure reaches you, which decides what a test can assert:
+- **Connection faults**: `refuse` and `reset` are indistinguishable from inside
+  the app. `stall` only fails if the client has a timeout. `drop` returns a
+  200 with a silently short body, so **assert on body length or content**, not
+  status.
+- **Faults are startup-only.** Changing them restarts the mock, and a mock that
+  wraps the app restarts the app too: run recovery scenarios unwrapped.
+- **Use `rate=F/N` when the failure ratio is the measurement.** Never
+  `--response-selection random`.
+- **`body=` only does `corrupt` and `truncate`**; realistic payloads need an
+  RRPair edit (MCP `edit_rrpair`, body-only).
+- **MCP** exposes `fault`, `mock-timing`, `mock-reload-interval` and
+  `response-selection`, but not `proxy-out-port`, `health-port` or
+  `app-health-endpoint`.
 
-- **`refuse` and `reset` are the same finding.** Both cut the connection before a complete response arrives, and a Go HTTP client reports both as `unexpected EOF`. At the socket level they differ (`curl` exits 52 vs 56), but nothing above the transport can tell which one was injected. Do not write an assertion that claims to tell them apart.
-- **`stall` only fails if the client has a timeout.** The mock accepts the request and never answers; without a client deadline the call hangs forever. Measured with `curl -m 8`: exit 28 at 8s. An app with no timeout hangs with it, which is itself the finding.
-- **`drop` is the sharp one.** It truncates mid-stream, so the status line and headers are already on the wire: the response advertises a `Content-Length` it never delivers. The truncated length varies between runs, so assert that the body is short rather than a specific number. A pass-through handler returns **HTTP 200 with a silently short body**, which a status-only assertion scores as a pass. **Assert on body length or content.** A handler that JSON-decodes the body surfaces the truncation as a 5xx instead.
-
-## Faults are startup-only
-
-`--fault` is read **once at startup**. Only mock DATA hot-reloads, via `--mock-reload-interval 1s`, which picks up an RRPair edit in about a second. Changing the fault set means restarting the mock.
-
-That has a consequence for recovery scenarios: **restarting a mock that wraps the app restarts the app too**, destroying whatever in-process state the recovery was supposed to test. Run recovery scenarios with the mock **unwrapped** and the app started separately against `--proxy-out-port`.
-
-## Ratio discipline
-
-When the client-visible failure ratio is the measurement, use `rate=F/N`. It is exact and periodic: `rate=1/3` measured `503 200 200 503 200 200` over six probes, so retry policies are testable exactly rather than statistically. With `1/2` and one immediate retry every client call should succeed; a client-visible failure rate equal to F/N means no retries at all.
-
-`--response-selection random` exists but is **weighted by copy count and noisy** (a 50% expectation measured 15/40), which is useless as an analytical instrument. Stay on the default `round-robin`, or use `rate=F/N`.
-
-## What still needs file edits
-
-Native faults replaced the whole variant-building engine, with one exception: `body=` only does `corrupt` and `truncate`. Scenario-accurate payloads (a real rate-limit envelope, a schema-drifted object) still need an RRPair edit, either by hand or with the MCP `edit_rrpair` tool, which is **body-only** (`file`, `side`, `body`).
-
-## MCP parity
-
-`mock_server_start` exposes `fault`, `mock-timing`, `mock-reload-interval` and `response-selection` alongside `in-directory`, `out-directory` and `log-to`, so faults themselves no longer need the CLI. Still absent over MCP: **`proxy-out-port`, `health-port`, `app-health-endpoint`**. An MCP-only agent can inject faults but cannot pin the proxy-out port or wait on a readiness endpoint; shell out to the CLI for that.
+Measurements and how each connection fault reaches the client:
+[references/fault-reference.md](references/fault-reference.md).
 
 ## Interpretation
 
 What the app under test does with each lie is the finding:
 
-- **`status=503`**: an app that returns 200 from a dependent endpoint while the downstream 503s is swallowing errors. Check whether the app validates downstream status before parsing the body.
-- **`status=429,header=Retry-After:30`**: check whether `Retry-After` survives to the app's own response. An app that retries a 429 immediately is worse.
+- **`status=503`**: an app that returns 200 from a dependent endpoint while the downstream 503s is swallowing errors, for example by ignoring the downstream status whenever the body still parses.
+- **`status=429,header=Retry-After:30`**: check whether `Retry-After` survives to the app's own response. An app that strips it means its clients never see the hint, and one that retries a 429 immediately is worse.
 - **`body=corrupt`**: an endpoint that passes garbage through as 200 is proxying decode failures to its own clients; the resilient behavior is a 5xx.
 - **`latency=<d>`**: watch the app's timeout budget. Under it, slow 200s; over it, whatever the app does instead is the finding.
 - **`connection=drop`**: the defect class no file edit could ever surface: 200 with a truncated body and no error anywhere in the chain. Gate on body length or content; status alone reports success.
@@ -105,3 +96,23 @@ What the app under test does with each lie is the finding:
 - **proxymock-regression-test**: replay at the app while this faulted mock serves, to turn observed resilience behavior into a gate.
 - **proxymock-perf-container**: drive load while the downstream is slow or flaky.
 - **proxymock-verify-fix**: after fixing a resilience bug this exposed, prove the fix by replay.
+
+## Result
+
+End with exactly this block:
+
+```
+### Result
+- **Ran:** what ran, against what
+- **Outcome:** pass, fail, or the headline number
+- **Numbers:** the 2 to 4 metrics that matter for this skill
+- **Artifacts:** paths the run wrote
+- **Next:** one suggested next step, naming the skill or giving a prompt
+```
+
+For this skill: **Ran** is the fault set and the driver used against the app.
+**Outcome** is what the app did with each lie (handled, swallowed, hung).
+**Numbers** are client-visible failure ratio against the injected ratio,
+timeouts, and responses with truncated or corrupt bodies. **Artifacts** are the
+mock log and the driver output. **Next** is a fix for the weakest behavior
+(then `proxymock-verify-fix`), or `proxymock-regression-test` to gate it.

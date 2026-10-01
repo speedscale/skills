@@ -124,7 +124,7 @@ kubectl -n speedscale logs deploy/speedscale-operator --tail=100
   kubectl delete validatingwebhookconfiguration speedscale-operator speedscale-operator-replay --ignore-not-found
   kubectl delete ns speedscale
   ```
-  then re-run Phase 4 from the Secret step.
+  then re-run section 5 of references/cluster-install.md from the Secret step.
 - Operator Running but forwarder/inspector never appear: registration with
   the cloud failed. Logs show the HTTP error; usually egress or tenant.
 - `Pending` pods: tolerations/nodeSelector do not match any node, or

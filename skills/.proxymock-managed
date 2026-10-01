@@ -1,2 +1,15 @@
+analyze-replay-report
 improve-mock-match-rate
 install-speedscale
+proxymock-chaos-mock
+proxymock-compare-results
+proxymock-contract-test
+proxymock-load-test
+proxymock-perf-container
+proxymock-regression-test
+proxymock-summarize-recording
+proxymock-verify-fix
+quality-loop
+record-traffic
+run-snapshot-replay
+tune-snapshot-replay

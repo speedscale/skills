@@ -33,7 +33,7 @@ Output files (in --out-dir):
 
 Examples:
   # single report over one recording
-  proxymock-compare-results.sh --in ./proxymock/recording
+  proxymock-compare-results.sh --in ./proxymock/recorded-<name>
 
   # before/after: did anything regress between two replay runs?
   proxymock-compare-results.sh \

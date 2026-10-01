@@ -15,7 +15,7 @@ hand-written test needed. One native command:
 proxymock replay \
   --in ./incident/recording \
   --test-against http://localhost:8080 \
-  --verify-fix --expect '^/api/stats'
+  --verify-fix --expect '^/orders'
 ```
 
 **Requires proxymock v2.5.814 or newer.**
@@ -39,11 +39,11 @@ is a match **PASS**. That flips everything:
 ```bash
 # before the fix: confirm the capture reproduces the bug
 proxymock replay --in ./incident/recording --test-against http://localhost:8080 \
-  --out ./reproduce --verify-fix --expect '^/api/stats'   # expect exit 2
+  --out proxymock/results/reproduce --verify-fix --expect '^/orders'   # expect exit 2
 
 # after the fix: prove it
 proxymock replay --in ./incident/recording --test-against http://localhost:8080 \
-  --out ./verify --verify-fix --expect '^/api/stats' --baseline ./reproduce
+  --out proxymock/results/verify --verify-fix --expect '^/orders' --baseline proxymock/results/reproduce
 ```
 
 | Exit | Verdict | Meaning |
@@ -53,7 +53,9 @@ proxymock replay --in ./incident/recording --test-against http://localhost:8080 
 | `3` | collateral | a pair whose recording succeeded now differs, on status or body |
 | `1` | — | precondition failure, e.g. no recorded-error (>= 400) pairs matched `--expect` |
 
-That table is the whole integration surface. Any CI system, in any language, can shell out to this one line; `quality-loop.sh verify-fix` is optional convenience that builds it and passes the exit code through.
+That table is the whole integration surface. Any CI system, in any language,
+can shell out to this one line; the bundled `quality-loop.sh verify-fix` is
+optional convenience that builds it and passes the exit code through.
 
 `--expect` is a regex over the request URI naming the incident endpoint(s).
 Without it the incident set is auto-detected as every pair whose **recorded**
@@ -94,25 +96,18 @@ where the incident's neighbors are often already failing. Masking compares
 change sets: a pair exempt for the failure it showed against the buggy build is
 **not** exempt when it starts failing differently (verified — an identical
 failure stays masked at exit 0, a different failure on the same pair is caught
-as a new mismatch at exit 3). What masking cannot catch is a delta the volatile
-field-name heuristic owns, and that heuristic is undocumented and observed
-unstable, so gate against a baseline rather than against a raw zero. See
+as a new mismatch at exit 3). Volatile-value suppression follows value patterns (UUID and timestamp
+values are ignored), so gate against a baseline rather than against a raw zero. See
 proxymock-regression-test for the full measurement.
 
 ## Blueprints
 
-Same rules as the regression skill, and they matter more here because an
-unapplied blueprint pollutes the collateral list with failures unrelated to the
-fix. In short: blueprints load from the workspace `proxymock/blueprints/` dir
-(the parent of the recording) and from a `blueprints/` copy inside `--in`;
-workspace discovery is not reproducible across identical recordings under
-different names, so if it does not load, put a copy inside `--in`. Confirm with
-the `Loaded blueprint` line. A blueprint that filters on `network_address` goes
-inert whenever `--test-against` spells the target differently, because replay
-rewrites the address to the target — `localhost:8080` fires the chains,
-`127.0.0.1:8080` loads the blueprint and fires zero, with no warning.
-`--require-blueprint` works on v2.5.814 but writes no verdict file on failure,
-which here would cost the entire fix classification; keep it opt-in.
+Same rules as the regression skill, and they matter more here: an unapplied
+blueprint pollutes the collateral list with failures unrelated to the fix. Never
+filter one on `network_address`, confirm the `Loaded blueprint` line, and keep
+`--require-blueprint` opt-in (on failure it writes no verdict file, which would
+cost the whole fix classification). Full rules:
+[`proxymock-regression-test` references](../proxymock-regression-test/references/blueprints-and-caveats.md).
 
 ## Interpretation
 
@@ -136,3 +131,23 @@ which here would cost the entire fix classification; keep it opt-in.
   recording. Same verdict mechanics, same blueprint rules.
 - **proxymock-compare-results**: deep comparison of the buggy-baseline replay
   dir against this run's output.
+
+## Result
+
+End with exactly this block:
+
+```
+### Result
+- **Ran:** what ran, against what
+- **Outcome:** pass, fail, or the headline number
+- **Numbers:** the 2 to 4 metrics that matter for this skill
+- **Artifacts:** paths the run wrote
+- **Next:** one suggested next step, naming the skill or giving a prompt
+```
+
+For this skill: **Ran** is the incident recording and the build under test.
+**Outcome** is `FIX CONFIRMED`, `BUG REPRODUCED` or `COLLATERAL`, with the exit
+code. **Numbers** are incident pairs flipped, collateral pairs, and
+`requests.failed`. **Artifacts** are the `--out` directories (keep the
+reproduce and verify runs together) and `replay-verdict.json`. **Next** is
+`proxymock-regression-test` to keep the fix gated.

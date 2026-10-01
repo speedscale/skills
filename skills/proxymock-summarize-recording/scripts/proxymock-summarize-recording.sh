@@ -17,13 +17,16 @@ Required:
 Options:
   --out FILE           Markdown summary path (default: <work>/summary.md)
   --work-dir DIR       Directory for the summary and the raw report digest
+                       (default: proxymock-summary-<ts>/ in the current directory,
+                       unless --out is given, which uses a temporary directory
+                       that is removed afterwards)
   --no-report          Skip the `proxymock report` digest (structure only)
   --proxymock PATH     proxymock binary (default: proxymock from PATH)
   -h, --help           Show this help
 
 Examples:
-  proxymock-summarize-recording.sh --in ./proxymock/recording
-  proxymock-summarize-recording.sh --in ./proxymock/recording --out brief.md
+  proxymock-summarize-recording.sh --in ./proxymock/recorded-<name>
+  proxymock-summarize-recording.sh --in ./proxymock/recorded-<name> --out brief.md
 USAGE
 }
 
@@ -73,18 +76,37 @@ fi
 
 in_dir="$(abs_path "$in_dir")"
 if [[ -z "$work_dir" ]]; then
-  work_dir="proxymock-summary-$(date -u +%Y%m%dT%H%M%SZ)"
+  if [[ -n "$out_file" ]]; then
+    # --out names the one file the caller wants; keep the scratch digest out of
+    # the current directory and remove it afterwards
+    work_dir="$(mktemp -d "${TMPDIR:-/tmp}/proxymock-summary.XXXXXX")"
+    trap 'rm -rf "$work_dir"' EXIT
+  else
+    work_dir="proxymock-summary-$(date -u +%Y%m%dT%H%M%SZ)"
+  fi
 fi
 mkdir -p "$work_dir"
 work_dir="$(abs_path "$work_dir")"
 [[ -n "$out_file" ]] || out_file="$work_dir/summary.md"
 mkdir -p "$(dirname "$out_file")"
+out_file="$(abs_path "$out_file")"
 
 report_digest=""
 if [[ "$do_report" == "1" ]]; then
   report_digest="$work_dir/report.prompt.md"
-  "$proxymock_bin" report --in "$in_dir" --format prompt --out "$report_digest" --exit-zero \
-    || report_digest=""
+  rm -f "$report_digest"
+  # A breached budget makes `report` exit non-zero after writing the digest,
+  # which is still worth appending; a report that wrote nothing is a failure
+  # and is said so rather than silently dropping the findings section.
+  if ! "$proxymock_bin" report --in "$in_dir" --format prompt --out "$report_digest" \
+      || [[ ! -s "$report_digest" ]]; then
+    if [[ -s "$report_digest" ]]; then
+      echo "note: proxymock report flagged budget breaches; its findings are appended" >&2
+    else
+      echo "warning: proxymock report failed, so the summary has no findings section" >&2
+      report_digest=""
+    fi
+  fi
 fi
 
 python3 - "$in_dir" "$out_file" "${report_digest:-}" <<'PY'
@@ -145,8 +167,15 @@ for path in sorted(root.rglob("*")):
         status_class[f"{code // 100}xx"] += 1
     method = req.get("method") or str(rr.get("command") or proto or "?").split()[0]
     uri = req.get("uri") or req.get("url") or rr.get("location") or ""
-    # collapse trailing id-ish path segments so endpoints group cleanly
-    norm = re.sub(r"/(?:[0-9a-fA-F-]{8,}|[0-9]+|[a-z0-9-]{8,}[0-9][a-z0-9-]*)(?=/|$)", "/{id}", uri)
+    # collapse id-ish path segments and query values so endpoints group
+    # cleanly: /orders/<uuid>?ts=123 becomes /orders/{id}?ts={v}
+    # (HTTP only: a SQL statement can hold a literal "?" placeholder)
+    is_http = bool(req.get("uri") or req.get("url"))
+    path_part, _, query = uri.partition("?") if is_http else (uri, "", "")
+    norm = re.sub(r"/(?:[0-9a-fA-F-]{8,}|[0-9]+|[a-z0-9-]{8,}[0-9][a-z0-9-]*)(?=/|$)", "/{id}", path_part)
+    if query:
+        keys = sorted({q.split("=", 1)[0] for q in query.split("&") if q})
+        norm += "?" + "&".join(f"{k}={{v}}" for k in keys)
     key = (direction, method, host or svc or "")
     endpoints[key][norm] += 1
 

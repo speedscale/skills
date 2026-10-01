@@ -11,7 +11,10 @@ multiple virtual users, then summarize latency percentiles, throughput, and
 match rate.
 
 Required:
-  --in DIR             Directory of test/recording RRPair files to replay
+  --in DIR             Recording directory to replay. Only its inbound (IN) pairs
+                       are sent; pass the recording root, not <recording>/localhost,
+                       which also holds database pairs when a database was
+                       mapped to localhost
   --test-against URL   Target to replay against (e.g. http://localhost:8080)
 
 Options:
@@ -48,13 +51,13 @@ Notes:
   - Latency values are milliseconds.
 
 Examples:
-  proxymock-load-test.sh --in ./proxymock/recording/localhost \
+  proxymock-load-test.sh --in ./proxymock/recorded-<name> \
     --test-against http://localhost:8080 --vus 8 --for 30s
-  proxymock-load-test.sh --in ./proxymock --test-against http://localhost:8080 \
+  proxymock-load-test.sh --in ./proxymock/recorded-<name> --test-against http://localhost:8080 \
     --vus 4 --times 20 --fail-if 'latency.p99>150' --fail-if 'requests.failed!=0'
-  proxymock-load-test.sh --in ./proxymock/recording/localhost \
+  proxymock-load-test.sh --in ./proxymock/recorded-<name> \
     --test-against http://localhost:8080 --sessions 20 --for 2m
-  proxymock-load-test.sh --in ./proxymock/recording/localhost \
+  proxymock-load-test.sh --in ./proxymock/recorded-<name> \
     --test-against http://localhost:8080 \
     --stage vus=5,for=30s --stage vus=50,for=2m,ramp=1m
 USAGE
@@ -204,9 +207,16 @@ replay_rc=0
 [[ -s "$result_json" ]] || { cat "$work_dir/replay.log" >&2; die "proxymock replay produced no JSON result (see $work_dir/replay.log)"; }
 
 python3 - "$result_json" "$summary_json" "$replay_rc" "$performance" <<'PY'
-import json, sys
+import json, re, sys
 
-result = json.load(open(sys.argv[1]))
+# Some builds print end-of-run teardown lines ("Speedscale could not complete
+# request ... context canceled") to stdout before the JSON, so parse from the
+# first line that starts the JSON object rather than the top of the file.
+raw = open(sys.argv[1]).read()
+start = next((m.start() for m in re.finditer(r"^\{", raw, re.M)), None)
+if start is None:
+    sys.exit("no JSON object found in " + sys.argv[1])
+result = json.JSONDecoder().raw_decode(raw[start:])[0]
 summary_json = sys.argv[2]
 replay_rc = int(sys.argv[3])
 performance = sys.argv[4] == "1"

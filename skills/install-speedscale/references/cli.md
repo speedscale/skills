@@ -1,6 +1,6 @@
 # CLI reference: speedctl and proxymock
 
-Read this when Phase 1-3 of SKILL.md needs OS-specific commands, when a
+Read this when the local path in SKILL.md needs OS-specific commands, when a
 binary is present but on the wrong path, or when authentication misbehaves.
 
 ## Contents
@@ -84,11 +84,12 @@ What they do, in order:
    `~/.speedscale`) and `chmod +x`. No sudo, no system paths.
 5. If the binary already existed and matched the latest checksum **and** a
    config file exists, print "already the current version" and exit 0.
-6. `happy_exit`: if `~/.speedscale/config.yaml` does not exist and either
+6. `happy_exit`: if neither `~/.speedscale/config.json` nor the legacy
+   `config.yaml` exists, and either
    `SPEEDSCALE_API_KEY` or `SPEEDSCALE_EMAIL` is set, or the shell is
    interactive, it runs `<name> init` for you. From a non-interactive agent
    shell with neither variable set it simply exits, so you run `init` yourself
-   in Phase 3.
+   in the init step of SKILL.md.
 
 Consequences worth knowing:
 
@@ -118,7 +119,9 @@ script; two copies of the binary in different directories is the most common
 
 ## 4. Windows
 
-speedctl: use WSL. proxymock: native binary.
+The supported path on Windows is WSL2: run the install and the app inside
+WSL2 and follow the Linux steps. Native Windows is not verified. If a user
+insists on native, speedctl needs WSL regardless; proxymock has a native binary.
 
 ```powershell
 mkdir -Force $env:USERPROFILE\.speedscale
@@ -130,13 +133,15 @@ curl.exe -L "https://downloads.speedscale.com/proxymock/proxymock.exe" -o $env:U
 Restart the terminal, then `proxymock init`. Windows MCP clients sometimes
 fail to spawn `proxymock.exe` as a child process; if the client hangs on
 startup, run `proxymock mcp run --http` and configure the client with the
-HTTP URL from `proxymock mcp json --http`.
+HTTP URL from `proxymock mcp json --http` (both default to port 7799; pass the
+same `--port` to each to change it).
 
 ## 5. Config file and API key locations
 
 - Home: `~/.speedscale` unless `SPEEDSCALE_HOME` is set (`--home` on `init`).
-- Config: `config.json` preferred, `config.yaml` accepted. A new `init`
-  writes JSON. Structure: `current-context`, `contexts[]` (each with `name`,
+- Config: proxymock and speedctl read `~/.speedscale/config.json`; a legacy
+  `config.yaml` is used only when no `config.json` exists. `proxymock version` prints the file in use, and the `--config` help
+  text names the same default. A new `init` writes JSON. Structure: `current-context`, `contexts[]` (each with `name`,
   `tenant`, `app-url`), `tenants[]` (each with `name`, `apikey`). The API key
   for the active context is the `apikey` of the tenant whose `name` equals
   the current context's `tenant`. `scripts/apikey.sh` does this lookup.

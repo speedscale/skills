@@ -1,173 +1,119 @@
 ---
 name: proxymock-load-test
-description: Run a quick load test by replaying recorded proxymock RRPair traffic at a target with parallel virtual users, then report latency percentiles, throughput, and match rate. Use when users ask for a load test, stress test, or to push concurrent traffic at a local app or service using recorded proxymock traffic.
-argument-hint: --in <dir> --test-against <url> [--vus N | --sessions N | --stage vus=N,for=D] [--for 30s | --times N] [--performance]
+description: Run a quick load test by replaying recorded proxymock RRPair traffic at a target with parallel virtual users, then report latency percentiles, throughput, and match rate. Use when users ask for a load test, performance test, stress test, or to push concurrent traffic at a local app or service using recorded proxymock traffic. Start the app with its dependencies mocked first, and read the database caveat below before mocking a database.
+argument-hint: --in <recording-dir> --test-against <url> [--vus N | --sessions N | --stage vus=N,for=D] [--for 30s | --times N] [--performance]
 ---
 
 # proxymock Quick Load Test
 
-Turn a recording into a load test. `proxymock replay` already replays recorded
-RRPair requests; with `--vus` (virtual users) and `--for`/`--times` it becomes a
-realistic load generator that reuses traffic the app actually saw, so the load
-is shaped like production instead of a synthetic script.
+Turn a recording into a load test. `proxymock replay` replays recorded requests;
+with `--vus` (virtual users) and `--for` or `--times` it becomes a load generator
+that reuses traffic the app actually saw, so the load is shaped like production.
+It uses local files and the `proxymock` CLI, with no Speedscale Cloud access.
 
-This workflow uses local files and the `proxymock` CLI. It does not require
-Speedscale Cloud access.
-
-Run commands from the user's application directory. Resolve bundled scripts relative to this `SKILL.md`; `SKILL_DIR` below is the absolute directory containing this skill, wherever it was installed. Set it to that location before using the examples:
+The native command is the whole product:
 
 ```bash
-SKILL_DIR="/absolute/path/to/proxymock-load-test"
+proxymock replay --in proxymock/recorded-<name> --test-against http://localhost:8080 \
+  --vus 8 --for 30s --load-test --fail-if 'latency.p99>150' --fail-if 'requests.failed!=0'
 ```
+
+The bundled script `scripts/proxymock-load-test.sh` takes the same flags, adds
+`--output json --no-out`, and writes `summary.json` (aggregate and per-endpoint
+metrics). Use it when you want that file; otherwise the command above is enough.
 
 ## Inputs
 
-- `--in`: directory of test/recording RRPair files to drive (the inbound
-  requests to your app, e.g. a recording's `localhost/` subdir, or a whole
-  recording).
-- `--test-against`: the target to hit (e.g. `http://localhost:8080`). Any part
-  of the address you supply overrides that part of each recorded request.
-- `--vus`: parallel virtual users (default 4).
-- `--for` / `--times`: load shape — run for a duration (loops the set) or a
-  fixed number of passes. Default is `--for 10s`.
-- `--sessions`: replay N recorded *sessions* concurrently instead of virtual
-  users (see below). Overrides `--vus`.
-- `--stage`: one leg of a load ramp, repeatable (see below). Self-contained,
-  so it replaces `--vus` / `--sessions` / `--for` / `--times`.
-- `--fail-if`: SLO gate, repeatable; trips a nonzero exit (see below).
-- `--performance`: opt-in high-throughput mode (see below). Not combinable
-  with a `--fail-if` on `requests.result-match-pct`.
+- `--in`: the **recording directory** (`proxymock/recorded-<name>`). Replay
+  sends only its inbound requests. Do not narrow to `<recording>/localhost`: when
+  a database was mapped to localhost, its Postgres or MySQL pairs are written
+  there too, next to the inbound ones. If you must narrow, filter inbound pairs
+  by direction (`direction: IN` in markdown, `"direction": "IN"` in JSON), not by
+  directory.
+- `--test-against`: the target (e.g. `http://localhost:8080`). Any part of the
+  address you give overrides that part of each recorded request.
+- `--vus` (default 4), `--for` / `--times` (default `--for 10s`): flat load.
+- `--sessions N`: replay N recorded actors in order at recorded think-time
+  (realistic, far lower rps). `--stage vus=N,for=D,ramp=D`: one leg of a ramp,
+  repeatable, and not combinable with `--vus`, `--sessions`, `--for` or `--times`.
+- `--fail-if`: SLO gate, repeatable, trips exit 1. Metrics:
+  `latency.{avg,min,max,p50,p75,p90,p95,p99}`,
+  `requests.{total,succeeded,failed,per-second,per-minute,response-pct,result-match-pct}`.
+- `--load-test` (script: `--performance`): skip response scoring for maximum
+  throughput; `matchPct` is then null and a `--fail-if` on
+  `requests.result-match-pct` is refused.
 
-Run the bundled script:
+Examples for sessions and ramps: [references/load-shapes.md](references/load-shapes.md).
 
-```bash
-bash "$SKILL_DIR/scripts/proxymock-load-test.sh" \
-  --in <recording-or-localhost-dir> \
-  --test-against http://localhost:8080 \
-  --vus 8 --for 30s
-```
+## Mock the dependencies first
 
-## Offline load test (no network)
-
-The target app's own downstream can be mocked so the whole load test runs
-offline. Start the app under `proxymock mock` in one terminal, then load it in
-another:
-
-Run both terminals from the user's app directory. Replace `<app command>` with that app's actual start command, and `localhost` with the recorded inbound host directory when different.
+Start the app under `proxymock mock` in one terminal, load it from another. Use
+the same `--map` the recording used, with the app pointed at the mapped port:
 
 ```bash
-# terminal 1: start the user's app with recorded downstream responses
-proxymock mock --in ./proxymock/recording -- <app command>
-
-# terminal 2: push load at that app using the installed skill
-bash "$SKILL_DIR/scripts/proxymock-load-test.sh" \
-  --in ./proxymock/recording/localhost \
-  --test-against http://localhost:8080 --vus 8 --for 20s
+proxymock mock --in proxymock/recorded-<name> --map 15432=postgres://localhost:5432 \
+  --no-out --app-health-endpoint /healthz -- <app start command>
 ```
 
-## High-throughput mode (--performance)
+`--no-out` keeps the mock from writing every pair to disk, the biggest mock-side
+CPU cost. Without `--map`, the database is not mocked and `mock` will not start
+while the real one is up.
 
-For pure-load runs where match rate does not matter, pass `--performance`.
-The script's own flag name is unchanged, but as of proxymock v2.5.805 it
-forwards `proxymock replay --load-test`: the flag was renamed, and the old
-`--performance` still works but prints `Flag --performance has been
-deprecated, use --load-test instead` on every run. The mode skips
-per-response match scoring and granular response collection on the
-generator. Combined with starting the mock side as `proxymock mock --no-out
-...` (skip writing every observed pair to disk, the biggest mock-side CPU
-cost), profiling on an 18-core M-series host measured +67% throughput (13.7k
-to 22.9k rps) and p99 down from 52 to 28 ms on identical hardware versus
-default flags — that is high-throughput mode plus `mock --no-out` against a
-default replay writing every pair to disk, so it is a both-sides figure, not
-the effect of the replay flag alone.
+**A mocked database cannot measure a database-bound slowdown** (an N+1, a
+missing index, a slow query) unless the slow path was itself recorded. A
+statement the recording never saw gets a wrong answer or none, the app returns
+fast errors, and after a miss the Postgres mock can desync and wedge the pool,
+so the load numbers describe the failure, not the slowdown. To measure it:
 
-The caveat: `--load-test` omits `requests.result-match-pct` from the results
-entirely, because responses are not scored. The summary reports `matchPct`
-as null with an explanatory note instead of a number, and the script refuses
-a `--fail-if` on `requests.result-match-pct` when `--performance` is set. It
-is opt-in, not the default, because the default mode's match data is what
-several consumers (and the Interpretation section below) gate on.
-`--load-test` also writes no replay output directory at all — no RRPair
-files and no `replay-verdict.json` — so nothing downstream can read per-pair
-results from a high-throughput run.
-
-## Load shape: sessions and ramps
-
-`--vus` is the default shape: every virtual user loops the whole traffic set
-as fast as it can. Two alternatives cover shapes it cannot express:
-
-- `--sessions N` replays N recorded **sessions** concurrently instead. Each
-  slot takes one recorded actor's requests and replays them in order,
-  preserving the recorded think-time, so the app sees a realistic distinct
-  actor per slot rather than N copies of the full set at full tilt. Expect
-  far lower rps than `--vus` at the same N — think-time is the point.
-  Combinable with `--for` / `--times`.
-- `--stage vus=N,for=D,ramp=D` describes one leg of a ramp and is repeatable;
-  legs run in order. `ramp` sits *inside* `for` (minimum 5s), not added to
-  it, and `sessions=N` may be used in place of `vus=N`. A stage carries its
-  own target and duration, so `--stage` cannot be combined with `--vus`,
-  `--sessions`, `--for` or `--times`; the script rejects the combination up
-  front rather than letting the replay fail after load is already flowing.
-
-```bash
-# 20 recorded actors, each replaying its own journey at recorded think-time
-bash "$SKILL_DIR/scripts/proxymock-load-test.sh" \
-  --in ./proxymock/recording/localhost --test-against http://localhost:8080 \
-  --sessions 20 --for 2m
-
-# warm up at 5 VUs, then ramp to 50 over a minute and hold
-bash "$SKILL_DIR/scripts/proxymock-load-test.sh" \
-  --in ./proxymock/recording/localhost --test-against http://localhost:8080 \
-  --stage vus=5,for=30s --stage vus=50,for=2m,ramp=1m
-```
-
-The summary shape is identical for all three, so `--fail-if` gates and the
-`summary.json` contract are unchanged.
-
-## SLO gating with --fail-if
-
-Pass one or more `--fail-if` conditions to make the run a pass/fail gate (handy
-in CI). The script exits nonzero when any condition is true:
-
-```bash
-bash "$SKILL_DIR/scripts/proxymock-load-test.sh" \
-  --in ./proxymock/recording/localhost --test-against http://localhost:8080 \
-  --vus 8 --for 30s \
-  --fail-if 'latency.p99>150' \
-  --fail-if 'requests.failed!=0'
-```
-
-Valid metrics: `latency.{avg,min,max,p50,p75,p90,p95,p99}`,
-`requests.{total,succeeded,failed,per-second,per-minute,response-pct,result-match-pct}`.
+1. Mock only the HTTP dependencies and keep the real database:
+   `proxymock mock --in proxymock/recorded-<name>/<http-host-dir> --no-out -- <app>`
+   with the app pointed at the real database port. Passing only the HTTP host's
+   directory keeps `mock` from binding the database port.
+2. Load it at the same shape for both builds (or both modes).
+3. Explain any latency jump by comparing **statements per inbound request**
+   between the two runs: record a short run of each under `proxymock record
+   --map ...`, run `proxymock-summarize-recording` on both, and divide the
+   Postgres pairs by the inbound pairs, then compare each endpoint's statement
+   list. A statement whose count scales with the rows returned is an N+1.
 
 ## Output
 
-`summary.json` (and the raw `result.json`) are written to the work dir. The
-summary carries the aggregate (`-ALL-`) metrics plus a per-endpoint breakdown:
-
-- `latencyMs`: min/avg/p50/p90/p95/p99/max (milliseconds).
-- `rps` / `rpm`: throughput.
-- `totalRequests`, `succeeded`, `failed`.
-- `matchPct`: percent of responses that matched the recorded response. A load
-  test cares mostly about latency, throughput, and `failed`; a low `matchPct`
-  is expected when responses carry per-call values (tokens, IDs, timestamps)
-  and is a correctness signal for the **proxymock-replay-tuning** skill, not a
-  load failure. Under `--performance` it is null (`--load-test` omits the
-  metric because responses are not scored) and `matchPctNote` says so.
-
-When reporting results, lead with p95/p99 latency, RPS, and failed count, and
-include the absolute path to `summary.json`.
+`summary.json` (and the raw `result.json`) carry the aggregate (`-ALL-`) metrics
+and a per-endpoint breakdown: `latencyMs` (min, avg, p50, p90, p95, p99, max),
+`rps` / `rpm`, `totalRequests`, `succeeded`, `failed`, and `matchPct` (percent of
+responses matching the recording; null under `--performance`).
 
 ## Interpretation
 
-- **Rising p99 as `--vus` climbs** — the app or a downstream is saturating;
-  step `--vus` up (4 → 8 → 16) to find the knee. **proxymock-perf-container**
-  automates that ladder and refuses to call generator saturation an app limit.
-- **Low rps under `--sessions`** — expected, not a finding. Sessions preserve
-  recorded think-time, so throughput reflects the recorded pacing rather than
-  the app's ceiling. Use `--vus` when you want a ceiling.
-- **`failed` > 0** — the target returned transport errors or timed out under
-  load; check the app log, not the recording.
-- **`matchPct` low but `failed` 0** — the app is fast and healthy; responses
-  just differ from the recording (dynamic fields). Hand off to
-  proxymock-replay-tuning if you need a clean match rate too.
+- **Rising p99 as `--vus` climbs:** the app or a downstream is saturating; step
+  `--vus` up (4, 8, 16) to find the knee. **proxymock-perf-container** judges the
+  number and refuses to call generator saturation an app limit.
+- **Low rps under `--sessions`:** expected. Sessions keep recorded think-time,
+  so throughput follows the recorded pacing. Use `--vus` for a ceiling.
+- **`failed` above 0:** check the app log. `failed` equal to the VU count, with
+  `context canceled` lines at the end of the output, is run teardown on older
+  builds, not app failure. On those builds the lines also precede the JSON on
+  stdout, so parse from the first `{` line; the script does.
+- **`matchPct` low but `failed` 0:** the app is fast and healthy; responses
+  differ from the recording on dynamic fields. Hand off to `tune-snapshot-replay`.
+
+## Result
+
+End with exactly this block:
+
+```
+### Result
+- **Ran:** what ran, against what
+- **Outcome:** pass, fail, or the headline number
+- **Numbers:** the 2 to 4 metrics that matter for this skill
+- **Artifacts:** paths the run wrote
+- **Next:** one suggested next step, naming the skill or giving a prompt
+```
+
+For this skill: **Ran** is the recording, the target, whether the database was
+mocked or real, and the load shape (`--vus`, `--sessions` or `--stage`, and the
+duration). **Outcome** is `pass` or the `--fail-if` that tripped. **Numbers** are
+p95 and p99 latency, rps, `failed` count, and `matchPct` (null under
+`--performance`). **Artifacts** are the absolute paths of `summary.json` and
+`result.json`, if the script ran. **Next** is `proxymock-perf-container` to
+judge the number, or `proxymock-regression-test` for correctness.

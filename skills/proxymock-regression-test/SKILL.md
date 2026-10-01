@@ -1,7 +1,7 @@
 ---
 name: proxymock-regression-test
-description: Replay a recorded proxymock session against a target and gate on the per-RRPair replay verdict (response status AND body) plus baseline-relative new mismatches, catching status-code and field-level regressions that a clean requests.failed hides. Use when users ask to regression-test a service against recorded traffic, verify a code change did not break replay behavior, or gate CI on a proxymock replay.
-argument-hint: --in <recording-dir> --test-against <url> [--baseline <prior-replay-dir>]
+description: Run a regression test from a proxymock recording. Starts the app with its dependencies mocked, replays the recording at it, and gates on the per-RRPair verdict (response status AND body) plus baseline-relative new mismatches, or on a tuned test config's goals, catching status-code and field-level regressions that a clean requests.failed hides. Also creates the first regression gate for a service from one recording. Use when users ask to regression-test a service against recorded traffic, verify a code change did not break behavior, make a regression gate for their own service, or gate CI on a proxymock replay.
+argument-hint: --in <recording-dir> --test-against <url> [--baseline <prior-replay-dir>] [--test-config <name>]
 ---
 
 # proxymock Regression Test
@@ -10,95 +10,142 @@ Turn a recording into a regression gate. One native command does it:
 
 ```bash
 proxymock replay \
-  --in ./proxymock/recording \
+  --in proxymock/recorded-<name> \
   --test-against http://localhost:8080 \
-  --baseline ./regress-base \
+  --baseline proxymock/results/regress-base \
   --fail-on-new-mismatch
 ```
 
-That is the whole gate. `replay` drives every recorded request at the target, scores each response against the recording (status **and** body), writes `<out>/replay-verdict.json`, and exits on the verdict. Use that native verdict directly.
+`replay` drives every recorded request at the target, scores each response
+against the recording (status **and** body), writes `<out>/replay-verdict.json`,
+and exits. Nothing in this repo re-derives that answer. Terms (verdict,
+accuracy, passAssertPct, match rate) are defined in
+[`quality-loop`](../quality-loop/SKILL.md#terms-used-the-same-way-in-every-skill).
 
-**Requires proxymock v2.5.814 or newer.** Everything below was measured on that
-release.
+**Requires proxymock v2.5.814 or newer.**
 
-## Works with your stack (no bash required)
+## 1. Start the app under test, mocked
 
-The command above is the contract. It takes a directory of RRPair files and a
-URL, so it does not care what language your service is in, what test framework
-you use, or whether you own a shell script. A k6, bruno, postman-cli, pytest,
-JUnit, or plain-Makefile user runs exactly the same line in CI:
+The replay needs the app running with its dependencies answered from the same
+recording. Reuse **every** `--map` the recording used (see
+[`record-traffic`](../record-traffic/SKILL.md)), or the database is not mocked
+and `mock` refuses to start while the real one is up:
 
 ```bash
-# first run, establish the baseline
-proxymock replay --in ./proxymock/recording --test-against http://localhost:8080 \
-  --out ./regress-base
-
-# every run after, gate against it
-proxymock replay --in ./proxymock/recording --test-against http://localhost:8080 \
-  --out ./regress-run --baseline ./regress-base --fail-on-new-mismatch
+proxymock mock --in proxymock/recorded-<name> \
+  --map 15432=postgres://localhost:5432 --app-health-endpoint /healthz \
+  --out proxymock/results/mocked-<ts> -- <app run command>
 ```
 
-Exit codes are the CI contract:
+Run the replay in another terminal against the app's own port. Tune the tests
+([`tune-snapshot-replay`](../tune-snapshot-replay/SKILL.md)) and the mocks
+([`improve-mock-match-rate`](../improve-mock-match-rate/SKILL.md)) first, so a
+clean baseline is real and not just quiet.
 
-| Exit | Meaning |
-| --- | --- |
-| `0` | verdict `pass` (or findings present but no `--fail-on-new-mismatch`) |
-| `3` | verdict `new-mismatch`: a pair fails now that did not fail in `--baseline` |
-| `1` | the run did not complete, or a `--fail-if` threshold tripped |
+## 2. Establish the baseline, then gate
 
-`--fail-on-new-mismatch` is rejected without `--baseline`; establish a baseline first. The optional `quality-loop.sh regression` is optional convenience that builds this exact line and passes the exit code through; the native command is what you should put in your pipeline.
+Write every run under `proxymock/results/`, not the repo root, so `doctor` and
+`mock --in .` do not mistake a run for a recording.
+
+```bash
+# first run, on known-good code
+proxymock replay --in proxymock/recorded-<name> --test-against http://localhost:8080 \
+  --out proxymock/results/regress-base [--test-config <name>]
+
+# every run after, on the changed code
+proxymock replay --in proxymock/recorded-<name> --test-against http://localhost:8080 \
+  --out proxymock/results/regress-run --baseline proxymock/results/regress-base \
+  --fail-on-new-mismatch [--test-config <name>]
+```
+
+`--fail-on-new-mismatch` is rejected without `--baseline`. The same command runs
+in any CI (k6, bruno, pytest, Make); `quality-loop.sh regression` only prints it.
+
+## Which scorer decides the exit code
+
+- **No `--test-config`:** the verdict decides. `0` pass, `3` a pair fails now
+  that did not fail in `--baseline`, `1` the run did not complete or a
+  `--fail-if` tripped.
+- **With `--test-config <name>`:** the config's goals decide (usually
+  `passAssertPct >= 100`). The run exits `1` on a missed goal, and `3` when a
+  baseline gate also finds a new mismatch, while `replay-verdict.json` can still
+  say `pass`. Use the config the user tuned in `tune-snapshot-replay`
+  (`proxymock/testconfigs/<name>.json`) for the baseline **and** every later run,
+  so both sides are scored the same way.
+
+Say which scorer failed when you report. The output names the failing goal or
+the `NEW MISMATCH` lines.
 
 ## Read the verdict, never the transport metrics
 
-`requests.failed` stays **0** for a status regression. A 201 that becomes a 200
-completes the HTTP exchange perfectly, so the transport counter is clean while
-the pair is scored a mismatch. Gate on the verdict file and the exit code.
-Empirically verified.
+`requests.failed` stays **0** for a status regression: a 201 that becomes a 200
+completes the exchange perfectly. Gate on the exit code and the verdict file.
 
-**Body scoring is native and on by default.** Each pair in
-`replay-verdict.json` carries `bodyMatch` and a `bodyChanges[]` list of
-`{severity, kind, endpoint, location, baseline, candidate}`, `kind` being
-`value_changed` / `field_added` / `field_removed`. Measured: `/api/stats`
-returning `total: 25` where the recording says `24`, with an unchanged 200,
-scores `match: pass` but `bodyMatch: fail` at
-`http.res.bodyBase64.total` and trips the gate (exit 3). Pass
-`--ignore-body-changes` to go back to status-only scoring when status and
-headers really are the whole contract.
+**Body scoring is native and on by default.** Each pair carries `bodyMatch` and
+`bodyChanges[]` of `{severity, kind, endpoint, location, baseline, candidate}`
+with `kind` `value_changed`, `field_added` or `field_removed`. Newer proxymock
+also reports a JSON type change (a number that becomes a string) as
+`type_changed`. On older builds that change scores as a body match, so add a
+body-asserting test config (`httpResponseBody`) to catch it. Pass
+`--ignore-body-changes` for status-only scoring when status and headers are the
+whole contract.
 
-## Two measured caveats on the gate
+## Caveats and blueprints
 
-**Baseline masking compares CHANGE SETS, not just pairs.** A pair that already
-failed in the baseline is exempt from *that same failure*, not from every later
-one. Verified both ways: an identical failure stays masked and the run exits 0;
-the same pair failing *differently* (401 that starts returning 500, or a body
-change at a location the baseline did not fail at) is caught as a new mismatch
-and exits 3.
+- **Baseline masking compares change sets.** A pair that failed in the baseline
+  is exempt from *that same failure* only; a different failure on it exits 3.
+- **Volatile-value suppression follows value patterns**, not field names: UUID
+  and timestamp values are ignored, other varying values are scored. Never trust
+  a raw `bodyMismatches: 0`; gate on NEW mismatches against a baseline.
+- **An app with moving IDs needs a blueprint**, or its auth and moving-ID
+  endpoints fail before and after a change and a regression there is
+  undetectable. Confirm the `Loaded blueprint "<name>" from <path>` line, and
+  never filter a blueprint on `network_address` (it goes inert, silently, when
+  `--test-against` is spelled differently). Use `detectedLocation` and scope with
+  `services`.
 
-**Volatile suppression is by FIELD NAME, it is undocumented, and it is not stable.** For example, measurements on a test fixture found that `Date` headers, bare 64-hex tokens, the `order_id` field (suppressed whatever the replacement value looks like) and the ISO-8601 `created` timestamp are suppressed, while `status`, `project`, `total` and `expires_in` changes on the same pairs are scored. A later round measured the opposite for a live `order-<16hex>`. So treat a raw `bodyMismatches: 0` as luck: establish a `--baseline` and gate on NEW mismatches. That is what keeps the gate green on a recording whose app mints fresh values every run.
-
-## Blueprints: the part that silently costs you the signal
-
-An app with moving IDs (rotating tokens, generated order ids) needs a blueprint
-to chain them through the replay. Without one, the auth and moving-ID endpoints
-401, and **a regression on their success paths is undetectable** because they
-fail before and after the change.
-
-- **Keep blueprints in the app workspace.** Put chains in `proxymock/blueprints/`, alongside that app's recording directories. Point `--in` at the user's recording and check the `Loaded blueprint "<name>" from <path>` line and transform-chain summary. Keep the standard workspace layout rather than copying blueprints inside the RRPair directory.
-- **The hostname trap (this one costs you the whole run).** Replay rewrites the recorded network address to the `--test-against` target, so a blueprint that filters on `network_address` binds itself to one spelling of that target. For example, a blueprint that filters `network_address CONTAINS "localhost"`: `--test-against localhost:8080` fired both chains (2 replayed RRPairs carrying `smart_replace`), while `--test-against 127.0.0.1:8080` **loaded the blueprint and fired ZERO chains, with no warning**. Same `Loaded blueprint` line either way. A loaded-but-inert blueprint is usually this, not a staging problem. Filter on `detectedLocation` / `detectedCommand` and scope with `services`.
-- **`--require-blueprint <name>` works, and is opt-in for a reason.** On v2.5.814 it exits 0 and still writes `replay-verdict.json` when the blueprint loaded and its chains ran; on an unresolvable name it exits 1 and writes **no verdict file at all**. Gating on it trades the entire regression signal for a blueprint warning. Add it when a silently inert blueprint is the bigger risk; otherwise check the `Loaded blueprint` line and grep the replay output for `smart_replace`.
+Details and the `--require-blueprint` trade-off:
+[references/blueprints-and-caveats.md](references/blueprints-and-caveats.md).
 
 ## Interpretation
 
-- **`NEW MISMATCH` with `requests.failed` 0**: the classic silent regression. Printed as `NEW MISMATCH: POST /api/orders recorded 201 -> observed 200`, and body-only findings as `... status 200, body total removed (was 24)`.
-- **Verdict `pass`, exit 0**: status and body both matched. A real clean bill of health now that bodies are scored, not a status-only one.
-- **`match: pass` with `bodyMatch: fail`**: right status, wrong field. Read `bodyChanges[]` for the JSON location.
-- **Failures present but none new**: the known noise floor from the user's comparison baseline. Inspect those failures before accepting them as harmless; a baseline is not evidence that the original behavior was correct.
-- **Known-mismatch pairs**: masked only against the failure they showed in the baseline. Read them anyway when the baseline was noisy; a pair can be failing in a way the volatile heuristic owns.
-- **An app without an inbound API spec**: use the recording as the behavior contract. Route dependency spec conformance to proxymock-contract-test; route the app's recorded behavior here.
+- **`NEW MISMATCH` with `requests.failed` 0** is the classic silent regression,
+  printed as `NEW MISMATCH: POST /orders recorded 201 -> observed 200`, or for a
+  body-only change `... status 200, body total removed (was 24)`.
+- **Verdict `pass`, exit 0:** status and body both matched, with the caveats
+  above (type changes on older builds). When a run fails, read which pair
+  tripped it: an incidental field can be the only thing that changed.
+- **`match: pass` with `bodyMatch: fail`:** right status, wrong field. Read
+  `bodyChanges[]` for the JSON location.
+- **Failures present but none new:** the known noise floor. Read them anyway
+  when the baseline was noisy.
+- **A service with no spec**: its contract IS the recording. Spec conformance
+  for a *dependency* goes to `proxymock-contract-test`.
 
 ## Related
 
-- **proxymock-verify-fix**: the inverted twin, over an incident capture.
-- **proxymock-compare-results**: deep report and drift comparison of two replay
-  output dirs.
-- **proxymock-perf-container**: the same replay under load.
+- **record-traffic** makes the recording; **proxymock-verify-fix** is the
+  inverted twin over an incident capture; **proxymock-compare-results** compares
+  two run directories in depth; **proxymock-perf-container** runs the same replay
+  under load.
+
+## Result
+
+End with exactly this block:
+
+```
+### Result
+- **Ran:** what ran, against what
+- **Outcome:** pass, fail, or the headline number
+- **Numbers:** the 2 to 4 metrics that matter for this skill
+- **Artifacts:** paths the run wrote
+- **Next:** one suggested next step, naming the skill or giving a prompt
+```
+
+For this skill: **Ran** is the recording, the target, the test config if any,
+and whether a baseline was used. **Outcome** is the verdict (`pass`,
+`new-mismatch`, or a baseline established) and which scorer decided the exit
+code. **Numbers** are pairs replayed, new mismatches, body mismatches,
+`passAssertPct` when a test config ran, and `requests.failed`. **Artifacts** are
+the `--out` directories and `replay-verdict.json`. **Next** is usually a CI line
+for the gate, or `proxymock-load-test` for the performance check.

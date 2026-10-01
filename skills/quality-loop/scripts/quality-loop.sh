@@ -30,8 +30,8 @@ Native modes (build and exec one proxymock command; its exit code is yours):
 
 Any flag this script does not name is forwarded to proxymock unchanged.
 
-Routes to installed companion skills (args pass through to their scripts):
-  compare | summarize | tune | load-test
+Routes to the other bundled Speedscale skills (args pass through to their scripts):
+  compare | summarize | load-test
 
   doctor [--root DIR]   preconditions and environment report
               exits: 0 healthy, 1 missing preconditions, 2 usage
@@ -147,13 +147,12 @@ mode_load() {
   run "${cmd[@]}" ${rest[@]+"${rest[@]}"}
 }
 
-# --- routes to installed companion skills -----------------------------------
+# --- routes to the other bundled Speedscale skills -----------------------------
 
 route_script() {
   case "$1" in
     compare)   echo "$skills_root/proxymock-compare-results/scripts/proxymock-compare-results.sh" ;;
     summarize) echo "$skills_root/proxymock-summarize-recording/scripts/proxymock-summarize-recording.sh" ;;
-    tune)      echo "$skills_root/proxymock-replay-tuning/scripts/tune-proxymock-replay.sh" ;;
     load-test) echo "$skills_root/proxymock-load-test/scripts/proxymock-load-test.sh" ;;
     *) return 1 ;;
   esac
@@ -184,12 +183,19 @@ cmd_doctor() {
   # builds differ on the items named below, so flag a stale CLI without failing.
   local stale_note="connection faults, native body scoring, --require-blueprint, proxymock validate, and teardown differ on older builds"
   if command -v "$PM" >/dev/null 2>&1 || [[ -x "$PM" ]]; then
-    local pv ver oldest
-    pv="$("$PM" version 2>/dev/null | head -1 || true)"
+    local pv ver oldest vout
+    # `version` prints "Client Version: vX.Y.Z" first, then the server and
+    # config lines; a dev build prints "Client Version: undefined"
+    vout="$("$PM" version 2>/dev/null || true)"
+    pv="$(printf '%s\n' "$vout" | grep -m1 -i 'client version' || true)"
+    [[ -n "$pv" ]] || pv="$(printf '%s\n' "$vout" | head -1)"
     echo "ok   proxymock: $(command -v "$PM" || echo "$PM") (${pv:-version unknown})"
     ver="$(printf '%s\n' "$pv" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
     if [[ -z "$ver" ]]; then
-      warns+=("proxymock version not parseable from '${pv:-}'; this pack assumes >= $MIN_PROXYMOCK ($stale_note)")
+      case "$pv" in
+        *undefined*|*dev*) echo "info proxymock: development build, version check skipped" ;;
+        *) warns+=("proxymock version not parseable from '${pv:-}'; this pack assumes >= $MIN_PROXYMOCK ($stale_note)") ;;
+      esac
     else
       oldest="$(printf '%s\n%s\n' "$MIN_PROXYMOCK" "$ver" | sort -t. -k1,1n -k2,2n -k3,3n | head -1)"
       if [[ "$oldest" != "$MIN_PROXYMOCK" ]]; then
@@ -203,23 +209,26 @@ cmd_doctor() {
     missing+=("proxymock CLI not on PATH; install per https://docs.speedscale.com/proxymock/")
   fi
 
-  # RRPair files live at <recording>/<host>/<timestamp>Z.md, so strip two path
-  # levels off each hit and dedup
+  # RRPair files live at <recording>/<host>/<timestamp>Z.md, or .json for
+  # database traffic and --out-format json, so strip two path levels off each
+  # hit and dedup
   local rec_dirs=() d
   while IFS= read -r d; do
     [[ -n "$d" ]] && rec_dirs+=("$d")
   done < <(
-    find "$root" \( -name .git -o -name node_modules \) -prune -o \
-      -type f -name '*Z.md' -print 2>/dev/null \
+    # proxymock/results/ holds replay and mock RUN output (same file layout as
+    # a recording, but not one), so keep it out of the recording list
+    find "$root" \( -name .git -o -name node_modules -o -path '*/proxymock/results' \) -prune -o \
+      -type f \( -name '*Z.md' -o -name '*Z.json' \) -print 2>/dev/null \
       | sed -e 's#/[^/]*/[^/]*$##' | sort -u
   )
   if [[ ${#rec_dirs[@]} -eq 0 ]]; then
     echo "MISS recordings: no RRPair recording dirs under $root"
-    missing+=("no RRPair recording dirs found; enter the loop with: proxymock record -- <app cmd> (then drive real traffic)")
+    missing+=("no RRPair recording dirs found; enter the loop with the record-traffic skill (proxymock record -- <app cmd>, then drive real traffic)")
   else
     local pairs
     for d in "${rec_dirs[@]}"; do
-      pairs="$(find "$d" -type f -name '*Z.md' 2>/dev/null | wc -l | tr -d ' ')"
+      pairs="$(find "$d" -type f \( -name '*Z.md' -o -name '*Z.json' \) 2>/dev/null | wc -l | tr -d ' ')"
       echo "ok   recording: $d ($pairs RRPairs)"
     done
   fi
@@ -264,7 +273,7 @@ cmd_doctor() {
     echo "info node: not present (only needed for Node apps)"
   fi
 
-  # default ports: 8080 (app), 4140 (proxymock proxy-out)
+  # default ports: 8080 (a typical app port), 4140 (proxymock proxy-out)
   if command -v lsof >/dev/null 2>&1; then
     local port pid
     for port in 8080 4140; do

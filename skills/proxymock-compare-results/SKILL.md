@@ -15,12 +15,6 @@ persistent findings between two runs, built for an iterate-and-verify loop
 This workflow uses local files and the `proxymock` CLI. It does not require
 Speedscale Cloud access.
 
-Run commands from the user's application directory. Resolve bundled scripts relative to this `SKILL.md`; `SKILL_DIR` below is the absolute directory containing this skill, wherever it was installed. Set it to that location before using the examples:
-
-```bash
-SKILL_DIR="/absolute/path/to/proxymock-compare-results"
-```
-
 ## Inputs
 
 - `--in`: the **current** RRPair directory — usually a fresh replay output
@@ -33,15 +27,16 @@ SKILL_DIR="/absolute/path/to/proxymock-compare-results"
 - `--fail-on-regression`: exit nonzero if the Compare report lists any
   regression — use as a CI gate.
 
-Run the bundled script:
+Run the bundled script by its path inside this skill's installed directory
+(`<skill-dir>` is the folder holding this `SKILL.md`), from your project root:
 
 ```bash
 # single report over one recording
-bash "$SKILL_DIR/scripts/proxymock-compare-results.sh" \
-  --in ./proxymock/recording
+<skill-dir>/scripts/proxymock-compare-results.sh \
+  --in ./proxymock/recorded-<name>
 
 # before/after: did anything regress between two replay runs?
-bash "$SKILL_DIR/scripts/proxymock-compare-results.sh" \
+<skill-dir>/scripts/proxymock-compare-results.sh \
   --in  ./proxymock/results/replayed-after \
   --baseline ./proxymock/results/replayed-before \
   --drift --fail-on-regression
@@ -64,9 +59,9 @@ digest, and the absolute paths.
 
 ## A typical before/after loop
 
-1. Replay the current code, save the output (e.g. `replayed-before/`).
+1. Replay the current code, save the output (e.g. `proxymock/results/replayed-before/`).
 2. Make the change.
-3. Replay again into `replayed-after/`.
+3. Replay again into `proxymock/results/replayed-after/`.
 4. Compare: `--in replayed-after --baseline replayed-before`.
 5. Read `report.prompt.md`. Treat *What regressed* as the blast radius of the
    change; *What improved* as what the change fixed (and what's now
@@ -84,12 +79,30 @@ digest, and the absolute paths.
   point at a real bug; fields that are *expected* to vary (a fresh token) are
   candidates to wildcard-ignore in the responder signature.
 
-When reporting results, lead with the regressed/improved counts and the path to
-`report.prompt.md` and `report.html`.
-
 ## Related
 
 - **proxymock-load-test** — generate the before/after replay outputs this skill
   compares.
-- **proxymock-replay-tuning** — when the comparison shows match-rate misses,
-  tune the mock set until the same replay passes.
+- **improve-mock-match-rate** — when the comparison shows match-rate misses,
+  tune the mocks until the same replay passes.
+- **tune-snapshot-replay** — when responses differ only on volatile fields,
+  tune the tests.
+
+## Result
+
+End with exactly this block:
+
+```
+### Result
+- **Ran:** what ran, against what
+- **Outcome:** pass, fail, or the headline number
+- **Numbers:** the 2 to 4 metrics that matter for this skill
+- **Artifacts:** paths the run wrote
+- **Next:** one suggested next step, naming the skill or giving a prompt
+```
+
+For this skill: **Ran** is the current and baseline directories. **Outcome** is
+`no regressions` or the regressed count. **Numbers** are regressed, improved and
+persistent counts, plus the score deltas. **Artifacts** are `report.prompt.md`,
+`report.html`, `report.json` and `drift.json`. **Next** is the fix for the top
+regression, or `proxymock-regression-test` to gate it.

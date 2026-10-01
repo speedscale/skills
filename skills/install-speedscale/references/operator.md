@@ -1,6 +1,6 @@
 # Operator reference: Helm chart values, platforms, GitOps, upgrades
 
-Read this during Phase 4 of SKILL.md when picking values for a specific
+Read this during section 5 of references/cluster-install.md when picking values for a specific
 platform, when the user cannot run Helm against the cluster, or when
 upgrading. The chart is `speedscale/speedscale-operator` from
 `https://speedscale.github.io/operator-helm/` (source:

@@ -11,7 +11,8 @@
 #
 # Uses `proxymock replay score` when the installed proxymock has it, and
 # otherwise computes the same headline numbers from the files on disk:
-#   local run:    <dir>/replay-verdict.json and the newest mocked-* run
+#   local run:    <dir>/replay-verdict.json and the mocked-* run (markdown and
+#                 JSON pairs both counted; runs live under proxymock/results/)
 #   cloud report: proxymock/reports/<id>.json and matches.grpc.jsonl
 #                 (pull it first with `proxymock cloud pull report <id>`)
 #
@@ -44,11 +45,17 @@ if proxymock replay score --help 2>/dev/null | grep -q 'proxymock replay score';
 fi
 
 # Count responder verdicts (HIT / MISS / PASSTHROUGH) in a mock output run.
+# HTTP pairs are markdown ("tags: ... match=HIT"); database pairs (Postgres,
+# MySQL) are JSON ("tags": {"match": "HIT"}), so count both or the database
+# calls vanish from the rate.
 mock_counts() {
   local dir="$1"
-  find "$dir" -name '*.md' -print0 2>/dev/null \
-    | xargs -0 awk '/^tags: /{ if (match($0, /match=[A-Z_]+/)) print substr($0, RSTART + 6, RLENGTH - 6) }' 2>/dev/null \
-    | sort | uniq -c | awk '{ printf "{\"%s\": %s}\n", $2, $1 }' | jq -s 'add // {}'
+  {
+    find "$dir" -name '*.md' -print0 2>/dev/null \
+      | xargs -0 awk '/^tags: /{ if (match($0, /match=[A-Z_]+/)) print substr($0, RSTART + 6, RLENGTH - 6) }' 2>/dev/null || true
+    find "$dir" -name '*.json' -print0 2>/dev/null \
+      | xargs -0 jq -r 'select(type == "object") | .tags.match? // empty' 2>/dev/null || true
+  } | sort | uniq -c | awk '{ printf "{\"%s\": %s}\n", $2, $1 }' | jq -s 'add // {}'
 }
 
 match_rate_json() {
@@ -72,7 +79,7 @@ if [ -f "$INPUT/replay-verdict.json" ]; then
   else
     # Names carry a sortable timestamp (mocked-2026-09-24_10-00-00Z); the run
     # that served this replay is the latest one started no later than it.
-    runs=$(find "$(dirname "$INPUT")" "$WORKSPACE/proxymock" -maxdepth 1 -type d -name 'mocked-*' 2>/dev/null \
+    runs=$(find "$(dirname "$INPUT")" "$WORKSPACE/proxymock/results" "$WORKSPACE/proxymock" -maxdepth 1 -type d -name 'mocked-*' 2>/dev/null \
       | awk -F/ '!seen[$NF]++ {print $NF"\t"$0}' | sort | cut -f2-)
     rts=$(basename "$INPUT" | sed -n 's/^replayed-\([0-9].*\)$/\1/p')
     mocked=""
