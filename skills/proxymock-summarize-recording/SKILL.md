@@ -15,6 +15,12 @@ a recording before you mock, replay, or hand it to a teammate.
 This workflow uses local files and the `proxymock` CLI. It does not require
 Speedscale Cloud access.
 
+Run commands from the user's application directory. Resolve bundled scripts relative to this `SKILL.md`; `SKILL_DIR` below is the absolute directory containing this skill, wherever it was installed. Set it to that location before using the examples:
+
+```bash
+SKILL_DIR="/absolute/path/to/proxymock-summarize-recording"
+```
+
 ## Inputs
 
 - `--in`: the recording / RRPair directory to summarize.
@@ -24,12 +30,9 @@ Speedscale Cloud access.
 Run the bundled script:
 
 ```bash
-./skills/proxymock-summarize-recording/scripts/proxymock-summarize-recording.sh \
+bash "$SKILL_DIR/scripts/proxymock-summarize-recording.sh" \
   --in ./proxymock/recording --out recording-brief.md
 ```
-
-If this skill has been copied outside `mock-lab`, replace
-`./skills/proxymock-summarize-recording` with the copied skill directory.
 
 ## What the summary contains
 
@@ -60,11 +63,3 @@ mix) and the summary path.
 - **proxymock-compare-results:** once you know what a recording holds, compare
   two of them for regressions.
 - **proxymock-load-test:** drive the inbound endpoints this summary lists.
-
-## Proof
-
-```bash
-./skills/proxymock-summarize-recording/scripts/prove-proxymock-summarize-recording.sh
-```
-
-The proof summarizes the committed `lab/proxymock/recording`, checks hosts, endpoints, status mix, and non-HTTP pair counts, and uses a local report stub to verify digest inclusion without cloud credentials.

@@ -12,6 +12,12 @@ and tuning turns the same replay back into hits.
 
 This workflow uses local files and the `proxymock` CLI. It does not require Speedscale Cloud access.
 
+Run commands from the user's application directory. Resolve bundled scripts relative to this `SKILL.md`; `SKILL_DIR` below is the absolute directory containing this skill, wherever it was installed. Set it to that location before using the examples:
+
+```bash
+SKILL_DIR="/absolute/path/to/proxymock-replay-tuning"
+```
+
 ## Inputs
 
 - `--in`: a recording to tune. It serves as both the mock set and the replay
@@ -23,15 +29,13 @@ This workflow uses local files and the `proxymock` CLI. It does not require Spee
 Use the bundled script:
 
 ```bash
-./skills/proxymock-replay-tuning/scripts/tune-proxymock-replay.sh --in <recording-dir>
+bash "$SKILL_DIR/scripts/tune-proxymock-replay.sh" --in <recording-dir>
 ```
-
-If this skill has been copied outside `mock-lab`, replace `./skills/proxymock-replay-tuning` with the copied skill directory.
 
 For custom ports and protocol maps:
 
 ```bash
-./skills/proxymock-replay-tuning/scripts/tune-proxymock-replay.sh \
+bash "$SKILL_DIR/scripts/tune-proxymock-replay.sh" \
   --in <recording-dir> \
   --proxy-port 4140 \
   --mock-arg '--map=15432=postgres://localhost:5432'
@@ -92,13 +96,3 @@ The script exits nonzero when:
 - `--fail-under <percent>` is set and the hit rate is lower than that threshold.
 
 When reporting results, include the hit rate and the absolute path to `summary.json`.
-
-## Proof
-
-To verify the bundled workflow end to end, run:
-
-```bash
-./skills/proxymock-replay-tuning/scripts/prove-proxymock-replay-tuning.sh
-```
-
-The proof script records the `mock-lab` Go app against the local CNCF API, drives both the basic and auth/order flows, verifies inbound route coverage, creates a stale mock set missing several dependency recordings, then replays the same traffic against the stale and tuned mock sets. It fails unless the tuned set improves the hit rate on real outbound requests.

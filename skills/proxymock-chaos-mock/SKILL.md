@@ -33,7 +33,7 @@ proxymock mock --in ./proxymock/recording \
   --fault '/v1/projects:connection=drop' -- go run .
 ```
 
-`mock` runs until you stop it; there is no pass/fail exit code to gate on. The gate is whatever you assert about your app *while* it serves, so pair it with `proxymock replay` (proxymock-regression-test) or your own test driver. The repo's `quality-loop.sh chaos` is optional convenience that builds this exact line; the native command is the contract.
+`mock` runs until you stop it; there is no pass/fail exit code to gate on. The gate is whatever you assert about your app *while* it serves, so pair it with `proxymock replay` (proxymock-regression-test) or your own test driver. The optional `quality-loop.sh chaos` is optional convenience that builds this exact line; the native command is the contract.
 
 `proxymock mock` **requires an explicit `--in`**. It does not discover a recording from cwd. Repeated `--in` unions several recordings into one mock source set.
 
@@ -64,7 +64,7 @@ Responses carrying a `status=`, `header=`, `body=` or `latency=` fault are tagge
 
 ## What each connection fault looks like
 
-All four fire over **HTTP/2** as well as HTTP/1.1, and stay scoped to the endpoints the pattern matches: measured against the committed h2 recording, `/v1/projects` failed under every action while an untargeted `/v1/categories` kept its exact full 200 body. What differs is how the failure reaches you, which decides what a test can assert:
+All four fire over **HTTP/2** as well as HTTP/1.1, and stay scoped to the endpoints the pattern matches: measured against an HTTP/2 test fixture, `/v1/projects` failed under every action while an untargeted `/v1/categories` kept its exact full 200 body. What differs is how the failure reaches you, which decides what a test can assert:
 
 - **`refuse` and `reset` are the same finding.** Both cut the connection before a complete response arrives, and a Go HTTP client reports both as `unexpected EOF`. At the socket level they differ (`curl` exits 52 vs 56), but nothing above the transport can tell which one was injected. Do not write an assertion that claims to tell them apart.
 - **`stall` only fails if the client has a timeout.** The mock accepts the request and never answers; without a client deadline the call hangs forever. Measured with `curl -m 8`: exit 28 at 8s. An app with no timeout hangs with it, which is itself the finding.
@@ -94,8 +94,8 @@ Native faults replaced the whole variant-building engine, with one exception: `b
 
 What the app under test does with each lie is the finding:
 
-- **`status=503`**: an app that returns 200 from a dependent endpoint while the downstream 503s is swallowing errors. Observed in the lab app: it ignores the downstream status whenever the body still parses.
-- **`status=429,header=Retry-After:30`**: check whether `Retry-After` survives to the app's own response. The lab app strips it, so its clients would never see the hint. An app that retries a 429 immediately is worse.
+- **`status=503`**: an app that returns 200 from a dependent endpoint while the downstream 503s is swallowing errors. Check whether the app validates downstream status before parsing the body.
+- **`status=429,header=Retry-After:30`**: check whether `Retry-After` survives to the app's own response. An app that retries a 429 immediately is worse.
 - **`body=corrupt`**: an endpoint that passes garbage through as 200 is proxying decode failures to its own clients; the resilient behavior is a 5xx.
 - **`latency=<d>`**: watch the app's timeout budget. Under it, slow 200s; over it, whatever the app does instead is the finding.
 - **`connection=drop`**: the defect class no file edit could ever surface: 200 with a truncated body and no error anywhere in the chain. Gate on body length or content; status alone reports success.
@@ -105,11 +105,3 @@ What the app under test does with each lie is the finding:
 - **proxymock-regression-test**: replay at the app while this faulted mock serves, to turn observed resilience behavior into a gate.
 - **proxymock-perf-container**: drive load while the downstream is slow or flaky.
 - **proxymock-verify-fix**: after fixing a resilience bug this exposed, prove the fix by replay.
-
-## Proof
-
-```bash
-./skills/quality-loop/scripts/prove-quality-loop.sh
-```
-
-One shared proof covers this pack (a documented deviation from the repo's one-prove-per-skill convention: every skill runs the same native binary now). The cases covering this skill serve the unmodified committed recording and verify proxy-observed behavior: `status=503` on the target with the untargeted endpoint still 200 and the `x-speedscale-chaos` header present, `rate=1/3` producing exactly `503 200 200 503 200 200`, and the scheme+port form of a plausible pattern producing the no-match warning instead of a silent no-op.

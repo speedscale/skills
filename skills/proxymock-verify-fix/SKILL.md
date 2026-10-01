@@ -53,9 +53,7 @@ proxymock replay --in ./incident/recording --test-against http://localhost:8080 
 | `3` | collateral | a pair whose recording succeeded now differs, on status or body |
 | `1` | — | precondition failure, e.g. no recorded-error (>= 400) pairs matched `--expect` |
 
-That table is the whole integration surface. Any CI system, in any language,
-can shell out to this one line; the repo's `quality-loop.sh verify-fix` is
-optional convenience that builds it and passes the exit code through.
+That table is the whole integration surface. Any CI system, in any language, can shell out to this one line; `quality-loop.sh verify-fix` is optional convenience that builds it and passes the exit code through.
 
 `--expect` is a regex over the request URI naming the incident endpoint(s).
 Without it the incident set is auto-detected as every pair whose **recorded**
@@ -138,18 +136,3 @@ which here would cost the entire fix classification; keep it opt-in.
   recording. Same verdict mechanics, same blueprint rules.
 - **proxymock-compare-results**: deep comparison of the buggy-baseline replay
   dir against this run's output.
-
-## Proof
-
-```bash
-./skills/quality-loop/scripts/prove-quality-loop.sh
-```
-
-One shared proof covers this pack (a documented deviation from the repo's
-one-prove-per-skill convention: every skill runs the same native binary now).
-The cases covering this skill fabricate an incident recording by flipping one
-GET pair's recorded status to 500 in a copy of the committed recording, then
-verify that `--verify-fix` against a stub serving the *original* 200 exits 0
-with `FIX CONFIRMED: recorded 500 -> observed 200`, and against a stub serving
-the incident's own 500 exits 2 with `BUG REPRODUCED` — the inversion, both
-directions.

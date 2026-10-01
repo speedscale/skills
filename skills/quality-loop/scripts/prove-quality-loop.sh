@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# Proves the exit-code contract of every documented native command in this pack,
-# against the committed lab recording. Hermetic: no cloud, no live downstream,
-# no app build. One proof for the whole pack -- a documented deviation from the
-# repo's one-prove-per-skill convention, since all five loop skills now run the
-# same binary and per-skill proofs would be five copies of these assertions.
+# Proves native command verdicts against the separate mock-lab fixture.
+# Uses local stubs for the regression and incident-fix cases.
 set -euo pipefail
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -11,17 +8,16 @@ need() { command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1";
 port() { python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()'; }
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The proofs run against the fixture recording committed in github.com/speedscale/mock-lab.
-# When this skill lives inside that repo the fixture is two levels up; otherwise point
-# MOCK_LAB_DIR at a checkout.
-repo_root="${MOCK_LAB_DIR:-$(cd "$script_dir/../../.." && pwd)}"
-if [[ ! -d "$repo_root/lab/proxymock/recording" ]]; then
+# Maintainer proofs use the separate mock-lab checkout, never the caller's app.
+: "${MOCK_LAB_DIR:?Set MOCK_LAB_DIR to a mock-lab checkout for maintainer proofs}"
+repo_root="$(cd "$MOCK_LAB_DIR" && pwd -P)"
+if [[ ! -d "$repo_root/proxymock/recording" ]]; then
   echo "mock-lab fixture not found at $repo_root; set MOCK_LAB_DIR to a checkout of https://github.com/speedscale/mock-lab" >&2
   exit 1
 fi
 ql="$script_dir/quality-loop.sh"
-recording="$repo_root/lab/proxymock/recording"
-spec="$repo_root/lab/openapi.yaml"
+recording="$repo_root/proxymock/recording"
+spec="$repo_root/shared/openapi.yaml"
 
 need proxymock; need python3; need curl; need lsof
 [[ -x "$ql" ]] || fail "dispatcher is not executable: $ql"
@@ -131,9 +127,9 @@ stub() {
   target="http://localhost:$p"
 }
 
-echo "== 1. doctor: 0 healthy against this repo, 1 against an empty root, 2 on usage"
+echo "== 1. doctor: 0 healthy against the fixture checkout, 1 against an empty root, 2 on usage"
 expect_rc 0 doctor-repo bash "$ql" doctor --root "$repo_root"
-saw doctor-repo "lab/proxymock/recording"
+saw doctor-repo "proxymock/recording"
 saw doctor-repo "mocklab-smart-replace.json"
 saw doctor-repo "^healthy:"
 mkdir -p "$tmp/empty"

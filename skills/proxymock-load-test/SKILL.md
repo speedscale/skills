@@ -14,6 +14,12 @@ is shaped like production instead of a synthetic script.
 This workflow uses local files and the `proxymock` CLI. It does not require
 Speedscale Cloud access.
 
+Run commands from the user's application directory. Resolve bundled scripts relative to this `SKILL.md`; `SKILL_DIR` below is the absolute directory containing this skill, wherever it was installed. Set it to that location before using the examples:
+
+```bash
+SKILL_DIR="/absolute/path/to/proxymock-load-test"
+```
+
 ## Inputs
 
 - `--in`: directory of test/recording RRPair files to drive (the inbound
@@ -35,14 +41,11 @@ Speedscale Cloud access.
 Run the bundled script:
 
 ```bash
-./skills/proxymock-load-test/scripts/proxymock-load-test.sh \
+bash "$SKILL_DIR/scripts/proxymock-load-test.sh" \
   --in <recording-or-localhost-dir> \
   --test-against http://localhost:8080 \
   --vus 8 --for 30s
 ```
-
-If this skill has been copied outside `mock-lab`, replace
-`./skills/proxymock-load-test` with the copied skill directory.
 
 ## Offline load test (no network)
 
@@ -50,12 +53,15 @@ The target app's own downstream can be mocked so the whole load test runs
 offline. Start the app under `proxymock mock` in one terminal, then load it in
 another:
 
+Run both terminals from the user's app directory. Replace `<app command>` with that app's actual start command, and `localhost` with the recorded inbound host directory when different.
+
 ```bash
-# terminal 1 — app with its downstream mocked from the committed recording
-cd languages/go && proxymock mock --in ../../lab/proxymock/recording -- go run .
-# terminal 2 — push load at the app
-./skills/proxymock-load-test/scripts/proxymock-load-test.sh \
-  --in lab/proxymock/recording/localhost \
+# terminal 1: start the user's app with recorded downstream responses
+proxymock mock --in ./proxymock/recording -- <app command>
+
+# terminal 2: push load at that app using the installed skill
+bash "$SKILL_DIR/scripts/proxymock-load-test.sh" \
+  --in ./proxymock/recording/localhost \
   --test-against http://localhost:8080 --vus 8 --for 20s
 ```
 
@@ -105,13 +111,13 @@ as fast as it can. Two alternatives cover shapes it cannot express:
 
 ```bash
 # 20 recorded actors, each replaying its own journey at recorded think-time
-./skills/proxymock-load-test/scripts/proxymock-load-test.sh \
-  --in ./recording/localhost --test-against http://localhost:8080 \
+bash "$SKILL_DIR/scripts/proxymock-load-test.sh" \
+  --in ./proxymock/recording/localhost --test-against http://localhost:8080 \
   --sessions 20 --for 2m
 
 # warm up at 5 VUs, then ramp to 50 over a minute and hold
-./skills/proxymock-load-test/scripts/proxymock-load-test.sh \
-  --in ./recording/localhost --test-against http://localhost:8080 \
+bash "$SKILL_DIR/scripts/proxymock-load-test.sh" \
+  --in ./proxymock/recording/localhost --test-against http://localhost:8080 \
   --stage vus=5,for=30s --stage vus=50,for=2m,ramp=1m
 ```
 
@@ -124,8 +130,8 @@ Pass one or more `--fail-if` conditions to make the run a pass/fail gate (handy
 in CI). The script exits nonzero when any condition is true:
 
 ```bash
-./skills/proxymock-load-test/scripts/proxymock-load-test.sh \
-  --in ./recording/localhost --test-against http://localhost:8080 \
+bash "$SKILL_DIR/scripts/proxymock-load-test.sh" \
+  --in ./proxymock/recording/localhost --test-against http://localhost:8080 \
   --vus 8 --for 30s \
   --fail-if 'latency.p99>150' \
   --fail-if 'requests.failed!=0'
@@ -165,14 +171,3 @@ include the absolute path to `summary.json`.
 - **`matchPct` low but `failed` 0** — the app is fast and healthy; responses
   just differ from the recording (dynamic fields). Hand off to
   proxymock-replay-tuning if you need a clean match rate too.
-
-## Proof
-
-```bash
-./skills/proxymock-load-test/scripts/prove-proxymock-load-test.sh
-```
-
-The proof starts the mock-lab Go app with its downstream mocked from the
-committed recording, drives a multi-VU load test at it, and verifies the run
-produced real throughput with zero failed requests and populated latency
-percentiles.

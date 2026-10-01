@@ -62,14 +62,11 @@ ChatGPT on the web and mobile cannot install these skills directly from a GitHub
 
 ### proxymock quality loop
 
-Skills for testing a service with recorded traffic and no Speedscale Cloud
-account. They were developed in [mock-lab](https://github.com/speedscale/mock-lab)
-and their examples use its committed fixture, `lab/proxymock/recording`, so
-paths like that are relative to a mock-lab checkout. The `prove-*.sh` scripts
-need `MOCK_LAB_DIR` pointing at one. They assume proxymock v2.5.814 or newer;
-`skills/quality-loop/scripts/quality-loop.sh doctor` warns if yours is older.
-Not sure which applies? Start with `quality-loop`: it routes an intent to the
-right command.
+Skills for testing your own service with your own recorded traffic. Run proxymock from the application's directory and pass the recording and target explicitly. These workflows use the local CLI and require no Speedscale Cloud account or mock-lab checkout. Use proxymock v2.5.814 or newer; `quality-loop` includes a doctor that checks the app's environment.
+
+Start with `quality-loop` when you need help choosing a command. For bundled helpers, resolve the script relative to the installed skill's `SKILL.md`, then invoke it by its absolute path while staying in your app directory. The install location may be outside your project.
+
+For an optional runnable example, try [mock-lab](https://github.com/speedscale/mock-lab). Maintainer proof scripts use its fixtures; see [CONTRIBUTING.md](CONTRIBUTING.md) for that separate workflow.
 
 | Skill | What it does | Wraps |
 | --- | --- | --- |

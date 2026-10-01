@@ -14,11 +14,10 @@ need_cmd() {
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 skill_dir="$(cd "$script_dir/.." && pwd)"
-# The proofs run against the fixture recording committed in github.com/speedscale/mock-lab.
-# When this skill lives inside that repo the fixture is two levels up; otherwise point
-# MOCK_LAB_DIR at a checkout.
-repo_root="${MOCK_LAB_DIR:-$(cd "$skill_dir/../.." && pwd)}"
-if [[ ! -d "$repo_root/lab/proxymock/recording" ]]; then
+# Maintainer proofs use the separate mock-lab checkout, never the caller's app.
+: "${MOCK_LAB_DIR:?Set MOCK_LAB_DIR to a mock-lab checkout for maintainer proofs}"
+repo_root="$(cd "$MOCK_LAB_DIR" && pwd -P)"
+if [[ ! -d "$repo_root/proxymock/recording" ]]; then
   echo "mock-lab fixture not found at $repo_root; set MOCK_LAB_DIR to a checkout of https://github.com/speedscale/mock-lab" >&2
   exit 1
 fi
@@ -27,7 +26,7 @@ summarize_script="$script_dir/proxymock-summarize-recording.sh"
 need_cmd python3
 [[ -x "$summarize_script" ]] || die "summarize script is not executable: $summarize_script"
 
-recording="$repo_root/lab/proxymock/recording"
+recording="$repo_root/proxymock/recording"
 [[ -d "$recording" ]] || die "missing committed recording: $recording"
 
 tmp="${TMPDIR:-/tmp}/proxymock-summarize-proof.$$"

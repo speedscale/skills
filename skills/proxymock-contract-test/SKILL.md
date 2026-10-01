@@ -6,6 +6,8 @@ argument-hint: --spec <openapi.(json|yaml)> --in <rrpair-dir>
 
 # proxymock Contract Test
 
+Use the user's dependency contract and recording. Paths below are relative to the user's app directory; replace `<dependency-host>` with the host subdirectory from that recording.
+
 Contract testing from the assets the quality loop already has: an OpenAPI 3.0+
 spec and RRPair traffic. One native command:
 
@@ -26,23 +28,18 @@ itself — no PyYAML, no `ruby -ryaml`.
 describes the API your app *calls*, and the recording's outbound pairs are the
 evidence.
 
-Your app's own inbound API usually has no spec, so **its contract is the
-recording**. Route that side to **proxymock-regression-test** (replay the
-recording at the app and diff), not here. In practice the asymmetry shows up as
-`NO_ROUTE` pairs and exit 3: pointing `validate` at the recording's
-`localhost/` subdir reports 8 pairs, 0 conformant, 8 without a spec route.
-Point it at the dependency host subdir instead.
+Your app's own inbound API usually has no spec, so **its contract is the recording**. Route that side to **proxymock-regression-test** (replay the recording at the app and diff), not here. In practice the asymmetry shows up as `NO_ROUTE` pairs and exit 3: pointing `validate` at inbound app pairs with a dependency spec reports `NO_ROUTE` when the app routes are absent from that spec. Point it at the dependency host subdir instead.
 
 ## Works with your stack (no bash required)
 
 ```bash
 # does the dependency's recorded behavior match its spec?
-proxymock validate --spec lab/openapi.yaml \
-  --in lab/proxymock/recording/demo-api.trafficreplay.com
+proxymock validate --spec ./openapi.yaml \
+  --in ./proxymock/recording/<dependency-host>
 
 # same check against a replay output dir: a violation introduced between
 # recording and replay is a change your code made
-proxymock validate --spec lab/openapi.yaml --in ./regress-run
+proxymock validate --spec ./openapi.yaml --in ./regress-run
 ```
 
 | Exit | Meaning |
@@ -52,11 +49,7 @@ proxymock validate --spec lab/openapi.yaml --in ./regress-run
 | `3` | no violations, but at least one pair's route is missing from the spec (`NO_ROUTE`) |
 | `1` | precondition failure: unreadable spec, missing directory, no HTTP pairs |
 
-Violations print with full attribution, e.g.
-`$[0].stars: type mismatch, expected integer, got string ("many")`, and the run
-ends with `checked 5 pair(s): 4 conformant, 1 violating, 0 without a spec
-route`. Any CI system in any language can gate on those exit codes; the repo's
-`quality-loop.sh contract` is optional convenience that builds this exact line.
+Violations print with full attribution, e.g. `$[0].stars: type mismatch, expected integer, got string ("many")`, and the run ends with `checked 5 pair(s): 4 conformant, 1 violating, 0 without a spec route`. Any CI system in any language can gate on those exit codes; `quality-loop.sh contract` is optional convenience that builds this exact line.
 
 **`validate` treats undocumented response fields as violations.** There is no
 flag to downgrade them. If additive response fields are non-breaking for you,
@@ -112,17 +105,3 @@ code paths. It is not logic-grade data. All measured:
 - **proxymock-summarize-recording**: see what hosts and routes a recording
   contains before pointing `--in` at it.
 - **quality-loop**: the router, and its `doctor`.
-
-## Proof
-
-```bash
-./skills/quality-loop/scripts/prove-quality-loop.sh
-```
-
-One shared proof covers this pack (a documented deviation from the repo's
-one-prove-per-skill convention: every skill runs the same native binary now).
-The cases covering this skill check the committed recording's dependency pairs
-against the committed `lab/openapi.yaml` and verify 5/5 conformant at exit 0;
-seed `stars: "many"` into a copy and verify exit 2 with the exact violation
-string; and point the same spec at the recording's `localhost/` subdir to
-verify the asymmetry lands as exit 3 with `NO_ROUTE` pairs named.

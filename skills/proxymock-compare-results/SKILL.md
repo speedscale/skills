@@ -15,6 +15,12 @@ persistent findings between two runs, built for an iterate-and-verify loop
 This workflow uses local files and the `proxymock` CLI. It does not require
 Speedscale Cloud access.
 
+Run commands from the user's application directory. Resolve bundled scripts relative to this `SKILL.md`; `SKILL_DIR` below is the absolute directory containing this skill, wherever it was installed. Set it to that location before using the examples:
+
+```bash
+SKILL_DIR="/absolute/path/to/proxymock-compare-results"
+```
+
 ## Inputs
 
 - `--in`: the **current** RRPair directory — usually a fresh replay output
@@ -31,18 +37,15 @@ Run the bundled script:
 
 ```bash
 # single report over one recording
-./skills/proxymock-compare-results/scripts/proxymock-compare-results.sh \
+bash "$SKILL_DIR/scripts/proxymock-compare-results.sh" \
   --in ./proxymock/recording
 
 # before/after: did anything regress between two replay runs?
-./skills/proxymock-compare-results/scripts/proxymock-compare-results.sh \
+bash "$SKILL_DIR/scripts/proxymock-compare-results.sh" \
   --in  ./proxymock/results/replayed-after \
   --baseline ./proxymock/results/replayed-before \
   --drift --fail-on-regression
 ```
-
-If this skill has been copied outside `mock-lab`, replace
-`./skills/proxymock-compare-results` with the copied skill directory.
 
 ## Output files
 
@@ -90,13 +93,3 @@ When reporting results, lead with the regressed/improved counts and the path to
   compares.
 - **proxymock-replay-tuning** — when the comparison shows match-rate misses,
   tune the mock set until the same replay passes.
-
-## Proof
-
-```bash
-./skills/proxymock-compare-results/scripts/prove-proxymock-compare-results.sh
-```
-
-The proof builds a degraded baseline from the committed recording, runs the
-compare, and verifies the report files are written and that the Compare report
-detects the seeded regression (and reports none when current == baseline).
