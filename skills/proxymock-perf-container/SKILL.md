@@ -38,8 +38,15 @@ proxymock replay --in proxymock/recorded-<name> --test-against http://localhost:
   database was mapped to localhost.
 - **A mocked database hides a database-bound slowdown** (N+1, missing index)
   unless the slow path was recorded. Measure it with the HTTP dependencies
-  mocked and the real database, and explain any latency jump by comparing
-  statements per inbound request between two runs. The recipe is in
+  mocked and the real database: `mock --in` the whole recording with its
+  `--map`, and the app's database setting pointed straight at the real
+  database (the map port goes unused). Never narrow `--in` to the HTTP host's
+  directory: the workspace blueprints do not load from there, so every call
+  misses the mock. An app that writes to its database changes its own load
+  between runs, so for an A/B comparison reset the tables before each run and
+  use a fixed `--times N` rather than `--for`. Explain any latency jump by
+  comparing statements per inbound request between two runs. The full recipe
+  is in
   [`proxymock-load-test`](../proxymock-load-test/SKILL.md#mock-the-dependencies-first).
 - Shapes beyond a flat `--vus` level (`--sessions`, `--stage`) are covered there.
   A flat level is what a capacity ladder needs, because rungs must be comparable.

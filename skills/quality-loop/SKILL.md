@@ -71,7 +71,9 @@ to report if one fails.
    `scripts/quality-loop.sh doctor` to check proxymock, ports and Node support.
 2. **Record one run** with [`record-traffic`](../record-traffic/SKILL.md).
    Local first. Stop only when inbound traffic and every outbound host and
-   database are in the recording.
+   database are in the recording. Wait for the app on its own port (or with
+   `--app-health-endpoint`), never through proxymock's inbound port 4143,
+   which records every request it sees.
 3. **Make the replay trustworthy.** Replay it once
    ([`run-snapshot-replay`](../run-snapshot-replay/SKILL.md)). If responses
    differ on IDs or timestamps, run `tune-snapshot-replay`; if mocks miss, run

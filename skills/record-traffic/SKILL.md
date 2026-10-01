@@ -76,6 +76,11 @@ Run it in the background and read its log until the app is ready. If the app
 exits or the log shows a proxy or port error, fix that first. Do not drive
 traffic at a half-started app.
 
+Check readiness on the app's own port (`curl http://localhost:<app port>/healthz`),
+or let `--app-health-endpoint` do the waiting. Never send a readiness probe
+through 4143: everything sent there is recorded, so each probe adds an extra
+pair to the recording.
+
 Language notes:
 
 - **Java, HTTPS calls fail with `PKIX path building failed`**: the JVM does not

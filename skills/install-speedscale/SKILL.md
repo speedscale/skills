@@ -61,6 +61,16 @@ Do not mix brew and script installs. The script does not edit `PATH`: add
 `~/.speedscale` to the user's shell profile and tell them you did. Windows:
 use WSL2. Pin a version with `-s vX.Y.Z`.
 
+**Already installed? Upgrade it.** The skills and the MCP tools change with
+each release, so an existing proxymock must be the latest release, not just
+present. Re-run the install script: it checks the installed binary against the
+latest release and replaces it only when they differ (Homebrew installs: `brew
+upgrade speedscale/tap/proxymock`, and if the tap is older than the latest
+release, switch to the script). Then check `proxymock version`. A version with
+a `-g<hash>` suffix is a local development build: leave it and say so. After an
+upgrade, re-run `proxymock mcp install --yes` (step 4) so the agent gets the
+new tools and skills.
+
 **3. Initialize with the key.** Default: ask the user to run `proxymock init`
 in their own terminal (browser sign-in, writes the config). If
 `SPEEDSCALE_API_KEY` is already set: `proxymock init --api-key

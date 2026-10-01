@@ -67,6 +67,10 @@ dispatcher script (`scripts/quality-loop.sh`) only builds and prints these lines
   flag to downgrade them.
 - **A malformed RRPair is skipped silently.** The warning only appears at
   `-v -v`, so a bad edit shows up as a missing endpoint, not a loud failure.
+- **Readiness probes belong on the app's own port.** Everything sent to the
+  inbound port (4143) during `record` is recorded, so a `curl
+  localhost:4143/healthz` loop adds pairs the app never served for real.
+  Probe `localhost:<app port>` or rely on `--app-health-endpoint`.
 - **Ctrl-C on `record` or `mock` with `--app-health-endpoint`** exits 1 and
   prints the usage on older builds. The recording is intact; treat it as a
   clean stop.
