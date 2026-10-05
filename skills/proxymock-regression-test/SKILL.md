@@ -120,7 +120,9 @@ Details and the `--require-blueprint` trade-off:
 - **Failures present but none new:** the known noise floor. Read them anyway
   when the baseline was noisy.
 - **A service with no spec**: its contract IS the recording. Spec conformance
-  for a *dependency* goes to `proxymock-contract-test`.
+  for the chosen app or dependency boundary goes to `proxymock-contract-test`.
+
+For a saved suite, use [quality-loop](../quality-loop/SKILL.md). Keep recording baselines as candidates until a developer accepts the expectation revision; skills and CI must not update acceptance or loosen assertions after a failure.
 
 ## Related
 

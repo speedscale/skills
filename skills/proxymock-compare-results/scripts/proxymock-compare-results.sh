@@ -134,36 +134,34 @@ echo ""
 echo "report files: $out_dir"
 ls -1 "$out_dir"
 
-# Parse the prompt digest for the compare verdict; it is stable across versions.
+# Gates read the native wire format; absent evidence is not zero regressions.
 regressions=0
 if [[ -n "$baseline_dir" ]]; then
-  echo ""
-  echo "=== compare verdict ==="
-  regressions="$(python3 - "$out_dir/report.prompt.md" <<'PY'
-import re, sys
-text = open(sys.argv[1]).read()
-
-def section(title):
-    # capture body of "## <title>" up to the next "## " or EOF
-    m = re.search(r"^##\s+" + re.escape(title) + r"\s*\n(.*?)(?=^##\s|\Z)", text, re.S | re.M)
-    return (m.group(1).strip() if m else "")
-
-def bullets(body):
-    return [ln for ln in body.splitlines() if ln.strip().startswith("- ")]
-
-regressed = section("What regressed")
-improved = section("What improved")
-persisted = section("Still present (high severity, survived both runs)")
-
-n_reg = len(bullets(regressed))
-n_imp = len(bullets(improved))
-n_per = len(bullets(persisted))
-
-print(f"regressed: {n_reg}", file=sys.stderr)
-print(f"improved : {n_imp}", file=sys.stderr)
-print(f"persisted: {n_per}", file=sys.stderr)
-print(n_reg)
-PY
+  regressions="$(python3 - "$out_dir/report.json" <<'PYJSON'
+import json, sys
+report = json.load(open(sys.argv[1]))
+if not isinstance(report, dict) or not isinstance(report.get("baseline"), dict) or not isinstance(report.get("current"), dict):
+    raise SystemExit("incomplete comparison: baseline or current report missing")
+deltas = report.get("deltas")
+if not isinstance(deltas, dict):
+    raise SystemExit("incomplete comparison: deltas missing")
+required = ("budgets", "outliers", "errorClusters", "findings")
+if any(key not in deltas for key in required):
+    raise SystemExit("incomplete comparison: expected delta sections missing")
+budgets = deltas["budgets"]
+if budgets is not None and (not isinstance(budgets, list) or any(not isinstance(item, dict) for item in budgets)):
+    raise SystemExit("incomplete comparison: invalid budget deltas")
+count = sum(item.get("verdict") == "regressed" for item in (budgets or []))
+for section, key in (("outliers", "regressed"), ("errorClusters", "new"), ("findings", "new")):
+    delta = deltas[section]
+    if not isinstance(delta, dict) or key not in delta:
+        raise SystemExit("incomplete comparison: invalid " + section + " deltas")
+    items = delta[key]
+    if items is not None and not isinstance(items, list):
+        raise SystemExit("incomplete comparison: invalid " + section + " entries")
+    count += len(items or [])
+print(count)
+PYJSON
 )"
 fi
 

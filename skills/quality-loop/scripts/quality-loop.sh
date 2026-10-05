@@ -6,7 +6,7 @@
 set -euo pipefail
 
 PM="${PROXYMOCK:-proxymock}"
-MIN_PROXYMOCK="2.5.814"
+BASELINE_PROXYMOCK="2.5.814"
 
 usage() {
   cat <<'USAGE'
@@ -22,7 +22,7 @@ Native modes (build and exec one proxymock command; its exit code is yours):
   contract    --spec FILE --in DIR
               -> proxymock validate
               exits: 0 conformant, 2 violations, 3 no spec route
-  chaos       --in DIR --fault 'PAT:action=value[,...]' [-- APP CMD...]
+  chaos       --in DIR --chaos 'SCOPE:effect=value,...' | --fault 'PAT:action=value,...' [-- APP CMD...]
               -> proxymock mock (runs until stopped)
   load        --in DIR --test-against URL [--vus N] [--for D] [--no-load-test]
               -> proxymock replay --vus --for --load-test
@@ -110,14 +110,14 @@ mode_chaos() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --in) ins+=(--in "$2"); shift 2 ;;
-      --fault) faults+=(--fault "$2"); shift 2 ;;
+      --fault|--chaos) faults+=("$1" "$2"); shift 2 ;;
       --) shift; app=("$@"); break ;;
       -h|--help) usage; exit 0 ;;
       *) rest+=("$1"); shift ;;
     esac
   done
   [[ ${#ins[@]} -gt 0 ]] || die 2 "chaos needs at least one --in (mock does not discover a recording from cwd)"
-  [[ ${#faults[@]} -gt 0 ]] || die 2 "chaos needs at least one --fault 'PATTERN:action=value'"
+  [[ ${#faults[@]} -gt 0 ]] || die 2 "chaos needs at least one --chaos or --fault rule"
   local cmd=("$PM" mock "${ins[@]}" "${faults[@]}")
   cmd+=(${rest[@]+"${rest[@]}"})
   [[ ${#app[@]} -gt 0 ]] && cmd+=(-- "${app[@]}")
@@ -179,8 +179,7 @@ cmd_doctor() {
   echo "root: $root"
   echo
 
-  # Every behavior this pack documents was measured on MIN_PROXYMOCK; older
-  # builds differ on the items named below, so flag a stale CLI without failing.
+  # This version check covers the legacy loop; recent scenario features need command-help checks.
   local stale_note="connection faults, native body scoring, --require-blueprint, proxymock validate, and teardown differ on older builds"
   if command -v "$PM" >/dev/null 2>&1 || [[ -x "$PM" ]]; then
     local pv ver oldest vout
@@ -194,14 +193,14 @@ cmd_doctor() {
     if [[ -z "$ver" ]]; then
       case "$pv" in
         *undefined*|*dev*) echo "info proxymock: development build, version check skipped" ;;
-        *) warns+=("proxymock version not parseable from '${pv:-}'; this pack assumes >= $MIN_PROXYMOCK ($stale_note)") ;;
+        *) warns+=("proxymock version not parseable from '${pv:-}'; legacy workflow baseline is $BASELINE_PROXYMOCK ($stale_note)") ;;
       esac
     else
-      oldest="$(printf '%s\n%s\n' "$MIN_PROXYMOCK" "$ver" | sort -t. -k1,1n -k2,2n -k3,3n | head -1)"
-      if [[ "$oldest" != "$MIN_PROXYMOCK" ]]; then
-        warns+=("proxymock $ver is older than $MIN_PROXYMOCK, which this pack's guidance assumes: $stale_note")
+      oldest="$(printf '%s\n%s\n' "$BASELINE_PROXYMOCK" "$ver" | sort -t. -k1,1n -k2,2n -k3,3n | head -1)"
+      if [[ "$oldest" != "$BASELINE_PROXYMOCK" ]]; then
+        warns+=("proxymock $ver is older than $BASELINE_PROXYMOCK, the legacy workflow baseline: $stale_note")
       else
-        echo "ok   proxymock version $ver: >= $MIN_PROXYMOCK (this pack's minimum)"
+        echo "ok   proxymock version $ver: >= $BASELINE_PROXYMOCK (legacy baseline; check recent feature help)"
       fi
     fi
   else

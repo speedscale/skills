@@ -109,7 +109,7 @@ while [[ $# -gt 0 ]]; do
     --fail-if) [[ $# -ge 2 ]] || die "--fail-if requires a value"; fail_if+=("$2"); shift 2 ;;
     --work-dir) [[ $# -ge 2 ]] || die "--work-dir requires a value"; work_dir="$2"; shift 2 ;;
     --proxymock) [[ $# -ge 2 ]] || die "--proxymock requires a value"; proxymock_bin="$2"; shift 2 ;;
-    --performance) performance="1"; shift ;;
+    --performance|--load-test) performance="1"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac

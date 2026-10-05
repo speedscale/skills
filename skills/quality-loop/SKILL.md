@@ -1,26 +1,26 @@
 ---
 name: quality-loop
-description: The entry point for testing a service with recorded traffic using proxymock. Routes an intent to the right skill (record, run a replay, tune the tests, tune the mocks, regression gate, load test, verify a fix, chaos, contract, compare), defines the shared terms (HIT/MISS/PASSTHROUGH, match rate, accuracy, verdict), walks the "do it to my own service" flow, and includes a doctor that checks the environment. Use when users ask how to test a change with recorded traffic, which proxymock skill or command applies, to set up the loop in a repo, to test their own service, or whether the environment is ready.
+description: The entry point for testing a service with recorded traffic using proxymock. Routes an intent to the right skill (record, run a replay, tune the tests, tune the mocks, regression gate, load test, verify a fix, chaos, contract, compare), defines the shared terms (HIT/MISS/PASSTHROUGH, match rate, accuracy, verdict), walks the "do it to my own service" flow, and includes a doctor that checks the environment. Use when users ask to turn a recording into saved scenarios, improve OpenAPI coverage or NFR checks, or how to test a change with recorded traffic, which proxymock skill or command applies, to set up the loop in a repo, to test their own service, or whether the environment is ready.
 argument-hint: <doctor|regression|verify-fix|load|chaos|contract|compare|summarize|load-test> [args...]
 ---
 
 # proxymock Quality Loop
 
-The loop: record real traffic once, keep it as a snapshot (RRPair files), run
-your code against the snapshot, act on the diff. One recording feeds every
-tier: the regression gate's input, the mock's data, the load test's request
-script, and the chaos variant's raw material. Nothing below asks for a second
-capture.
+The loop: record real traffic once, keep it as a snapshot (RRPair files), run your code against the snapshot, act on the diff. One recording feeds the regression gate, dependency mocks, load workload and chaos cases. Coverage expansion may require supplemental capture from owned dependencies; a small recording cannot establish every business outcome.
 
-**Requires proxymock v2.5.814 or newer.** Older builds differ on connection
-faults, body scoring, `--require-blueprint`, `proxymock validate` and process
-teardown. Where a skill says "newer proxymock", the feature is recent: check
-`proxymock <command> --help` before relying on it.
+**Recording-to-scenarios requires a recent proxymock build.** Verify `coverage --help`, `replay score --help`, `mock --help` for `--chaos`, and `generate --help` for `--direction` before starting. The doctor's v2.5.814 check is a legacy workflow baseline, not proof that these newer features exist. Save the installed version with results; do not infer feature availability from that old version gate.
+
+## Recording to saved scenarios
+
+For “turn this small recording into regression, contract, load and chaos tests” or “improve OpenAPI coverage and NFR scenarios,” read [the recording-to-scenarios workflow](references/recording-to-scenarios.md). Compose the specialist skills through this entry point. Native product features execute and score tests; the agent proposes cases and carries setup/evidence between skills. Mocks are the reusable dependencies that make repeated and concurrent runs possible. Complete each requested scenario type and retain unresolved prerequisites while independent scenarios run.
+
+Start the mock-lab demonstration with its existing languages/go HTTP app and committed recording. Keep first-run setup to the language runtime and proxymock; use native commands and the existing harness. Databases, Docker and additional services belong to apps that already require them.
 
 ## Routing
 
 | Intent sounds like | Skill |
 | --- | --- |
+| "Turn this recording into scenarios", "fill coverage gaps", "deepen NFR tests" | **quality-loop**, [recording-to-scenarios workflow](references/recording-to-scenarios.md) |
 | "Record traffic", "I need a recording" | **record-traffic** |
 | "What is in this recording?" | **proxymock-summarize-recording** |
 | "Run this recording or snapshot", replay it locally or in the cluster | **run-snapshot-replay** |
@@ -43,9 +43,7 @@ Tie-breakers:
 - **regression vs verify-fix** is decided by the recording. A healthy recording
   plus "did I break it" is `regression`. An incident capture (recorded errors
   are the truth) plus "is it fixed" is `verify-fix`.
-- **contract vs regression** is decided by the boundary. A dependency with a
-  spec is `contract`; your own app, whose contract IS the recording, is
-  `regression`.
+- **contract vs regression** is decided by the boundary. A boundary with an accepted OpenAPI schema uses `contract`, including your own inbound API. Recorded journeys and accepted business outcomes use `regression`; both apply to the same app.
 - **regression vs run-snapshot-replay** is decided by the target. A local app at
   a known URL that must pass a gate is `regression`. A snapshot to run where it
   was recorded, often a cluster workload, is `run-snapshot-replay`.

@@ -20,18 +20,11 @@ itself — no PyYAML, no `ruby -ryaml`.
 
 **Requires proxymock v2.5.814 or newer.**
 
-## Read this first: the contract is one-sided
+## Choose the boundary and its schema
 
-`validate` checks traffic against **the DEPENDENCY's spec** — the spec
-describes the API your app *calls*, and the recording's outbound pairs are the
-evidence.
+Validate outbound dependency responses against that dependency's accepted schema, or inbound application responses against the application's accepted schema. Select the corresponding traffic and spec. `NO_ROUTE` means the selected spec lacks that method/path; it does not mean inbound contracts are unsupported.
 
-Your app's own inbound API usually has no spec, so **its contract is the
-recording**. Route that side to **proxymock-regression-test** (replay the
-recording at the app and diff), not here. In practice the asymmetry shows up as
-`NO_ROUTE` pairs and exit 3: pointing `validate` at the recording's
-`localhost/` subdir reports every pair as without a spec route. Point it at the
-dependency host subdir instead.
+Validation measures response shape, required fields, status definitions and response properties. It does not validate request boundaries or establish business values. Pair it with accepted regression expectations and explicit negative request cases.
 
 ## Works with your stack (no bash required)
 
@@ -66,7 +59,7 @@ violation list rather than the code.
 ## Mocking a dependency from its spec, before any recording exists
 
 ```bash
-proxymock generate --spec ./openapi.yaml --out ./generated --include-optional
+proxymock generate ./openapi.yaml --out ./generated --include-optional
 proxymock mock --in ./generated
 ```
 
@@ -95,9 +88,7 @@ code paths. It is not logic-grade data. All measured:
 - **VIOLATION on replayed traffic**: same check, but the responses came from
   your mock or your app under test, so a violation introduced between recording
   and replay is a change your code made.
-- **NO_ROUTE (exit 3)**: for a dependency host, the spec is incomplete. For
-  your own app's inbound pairs, this is the asymmetry above — route that side
-  to proxymock-regression-test.
+- **NO_ROUTE (exit 3)**: for a dependency host, the spec is incomplete. For inbound application pairs, check the app schema and operation before changing the case.
 - **undocumented-field violations**: additive response fields are usually
   non-breaking, but `validate` scores them as violations regardless. Decide
   from the violation text, not from the exit code alone.
@@ -105,9 +96,11 @@ code paths. It is not logic-grade data. All measured:
   shape, not values or ordering; a wrong-but-well-typed response passes. Pair
   with proxymock-regression-test for behavior.
 
+For coverage expansion and saved scenarios, follow [quality-loop](../quality-loop/SKILL.md). Generated schema cases are candidates until exercised and accepted; never weaken the schema to make a replay pass.
+
 ## Related
 
-- **proxymock-regression-test**: the other side of the asymmetry; when the app
+- **proxymock-regression-test**: when the app
   has no spec, the recording is the contract and replay is the gate.
 - **proxymock-summarize-recording**: see what hosts and routes a recording
   contains before pointing `--in` at it.

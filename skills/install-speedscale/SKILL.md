@@ -53,7 +53,7 @@ account yet, stop and send them there.
 **2. Install proxymock.**
 
 ```bash
-brew install speedscale/tap/proxymock          # Homebrew machine
+brew update && brew install speedscale/tap/proxymock   # Homebrew machine
 sh -c "$(curl -Lfs https://downloads.speedscale.com/proxymock/install-proxymock)"   # macOS, Linux, WSL
 ```
 
@@ -65,11 +65,11 @@ use WSL2. Pin a version with `-s vX.Y.Z`.
 each release, so an existing proxymock must be the latest release, not just
 present. Re-run the install script: it checks the installed binary against the
 latest release and replaces it only when they differ (Homebrew installs: `brew
-upgrade speedscale/tap/proxymock`, and if the tap is older than the latest
-release, switch to the script). Then check `proxymock version`. A version with
-a `-g<hash>` suffix is a local development build: leave it and say so. After an
-upgrade, re-run `proxymock mcp install --yes` (step 4) so the agent gets the
-new tools and skills.
+update && brew upgrade speedscale/tap/proxymock`; without `brew update`,
+Homebrew can keep a copy of the tap up to a day old and miss a new release).
+Then check `proxymock version`. A version with a `-g<hash>` suffix is a local
+development build: leave it and say so. After an upgrade, re-run `proxymock
+mcp install --yes` (step 4) so the agent gets the new tools and skills.
 
 **3. Initialize with the key.** Default: ask the user to run `proxymock init`
 in their own terminal (browser sign-in, writes the config). If

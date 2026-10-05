@@ -110,7 +110,7 @@ responses matching the recording; null under `--performance`).
   `context canceled` lines at the end of the output, is run teardown on older
   builds, not app failure. On those builds the lines also precede the JSON on
   stdout, so parse from the first `{` line; the script does.
-- **`matchPct` low but `failed` 0:** the app is fast and healthy; responses
+- **`matchPct` low but `failed` 0:** transport success does not establish correctness; responses
   differ from the recording on dynamic fields. Hand off to `tune-snapshot-replay`.
 
 ## Result
@@ -133,3 +133,5 @@ p95 and p99 latency, rps, `failed` count, and `matchPct` (null under
 `--performance`). **Artifacts** are the absolute paths of `summary.json` and
 `result.json`, if the script ran. **Next** is `proxymock-perf-container` to
 judge the number, or `proxymock-regression-test` for correctness.
+
+For saved suites, first qualify correctness and, for SQL workloads, row fidelity, then measure latency, throughput, errors and delivered workload. Use owned local app and mocks with saved limits. Report dependency timing and environment; mocked database numbers do not measure real database capacity. Missing workload delivery or measurements are incomplete or untested, never passed. See [quality-loop](../quality-loop/SKILL.md).

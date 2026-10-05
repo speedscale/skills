@@ -108,6 +108,7 @@ Consequences worth knowing:
 ## 3. Homebrew tap
 
 ```bash
+brew update
 brew install speedscale/tap/speedctl
 brew install speedscale/tap/proxymock
 ```

@@ -37,6 +37,12 @@ proxymock mock --in ./proxymock/recorded-<name> \
 
 An app with a database needs the same `--map` the recording used. `proxymock mock` **requires an explicit `--in`**. It does not discover a recording from cwd. Repeated `--in` unions several recordings into one mock source set.
 
+## Scoped scenarios and evidence
+
+Prefer native `--chaos` for scoped, bounded scenarios: `proxymock mock --in <recording> --no-passthrough --chaos '(location REGEX "^/v1/projects"): status=503,percent=100,duration=2s' -- <app command>`. The dispatcher accepts either `--chaos` or `--fault`.
+
+A matched rule or marker alone does not prove the intended fault. Require the selected rule ID and actual changed status/body, measured delay or responder connection event, then check the accepted application outcome and a healthy probe after fault removal. Inactive or unproven faults are incomplete. A reviewed fallback 200 or 502 may be the correct result. Keep mocks and app isolated; use [quality-loop](../quality-loop/SKILL.md) to save the scenario and recovery expectations.
+
 ## Fault syntax
 
 ```text
@@ -58,7 +64,7 @@ Actions:
 
 `rate=F/N` alone injects intermittent 503s. Only the `F/N` form is accepted: `0.5` and `50%` are rejected at startup.
 
-Responses carrying a `status=`, `header=`, `body=` or `latency=` fault are tagged `x-speedscale-chaos: proxymock fault`; unfaulted responses carry `x-speedscale-chaos: none`, so match on the value, not on presence. Connection faults have no complete response to tag.
+Read native effect/rule evidence rather than testing only header presence. Current builds persist applied effects and an as-sent status when it changed. Older builds used `proxymock fault` and `none` marker values. Connection faults may have no complete response to tag. If the run cannot prove the selected effect, report it as incomplete.
 
 **A pattern that matches nothing warns where you are not looking.** proxymock prints `Warning: --fault pattern "..." matches no mock data, so it will never fire`, but when it **wraps your app**, its own output goes to `proxymock.log`, not your terminal. Standalone mocks print it. Read the log before believing an injected fault ran.
 
@@ -85,7 +91,7 @@ Measurements and how each connection fault reaches the client:
 
 What the app under test does with each lie is the finding:
 
-- **`status=503`**: an app that returns 200 from a dependent endpoint while the downstream 503s is swallowing errors, for example by ignoring the downstream status whenever the body still parses.
+- **`status=503`**: check the accepted application behavior. A reviewed cached or fallback 200 can be correct; an unexplained 200 may indicate an ignored downstream error.
 - **`status=429,header=Retry-After:30`**: check whether `Retry-After` survives to the app's own response. An app that strips it means its clients never see the hint, and one that retries a 429 immediately is worse.
 - **`body=corrupt`**: an endpoint that passes garbage through as 200 is proxying decode failures to its own clients; the resilient behavior is a 5xx.
 - **`latency=<d>`**: watch the app's timeout budget. Under it, slow 200s; over it, whatever the app does instead is the finding.
