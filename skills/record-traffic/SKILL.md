@@ -1,6 +1,6 @@
 ---
 name: record-traffic
-description: Record a service's real traffic with proxymock into RRPair files, locally, so it can be replayed, mocked, regression-tested and load-tested. Finds how the app starts and what it depends on (HTTP APIs, Postgres, MySQL and other databases), wraps it with proxymock record, drives traffic, stops once inbound requests and every outbound host and database are captured, then summarizes it. Use when the user asks to "record traffic", "capture a recording", "record my service", or when a regression, replay or mock task has no recording yet. Kubernetes capture is not covered yet.
+description: Record a service's real traffic with proxymock into RRPair files, on this machine or from a Kubernetes workload, so it can be replayed, mocked, regression-tested and load-tested. Finds how the app starts and what it depends on (HTTP APIs, Postgres, MySQL and other databases), wraps it with proxymock record (or turns cluster capture on for the workload), drives traffic, stops once inbound requests and every outbound host and database are captured, pulls it into the workspace, then summarizes it. Use when the user asks to "record traffic", "capture a recording", "record my service", "record it in the cluster", or when a regression, replay or mock task has no recording yet.
 argument-hint: "[<name>] [-- <app run command>]"
 ---
 
@@ -8,9 +8,9 @@ argument-hint: "[<name>] [-- <app run command>]"
 
 Capture what a service receives and what it calls, as RRPair files under
 `proxymock/recorded-<name>/`. One good recording feeds every later step: replay,
-mocks, the regression gate and the load test. This skill runs the app on this
-machine. See [In a Kubernetes cluster](#in-a-kubernetes-cluster) for the other
-place.
+mocks, the regression gate and the load test. Steps 1 to 5 run the app on this
+machine; a workload in a Kubernetes cluster follows
+[In a Kubernetes cluster](#in-a-kubernetes-cluster) instead.
 
 ## Prerequisites
 
@@ -147,10 +147,22 @@ regression gate ([`proxymock-regression-test`](../proxymock-regression-test/SKIL
 
 ## In a Kubernetes cluster
 
-Not covered yet. Use the `cluster` MCP tool directly: `action=inject` turns eBPF
-capture on for one workload without restarting it, `capture-status` shows it, and
-`action=uninject` turns it off; then pull the traffic into the workspace. Ask
-before touching a production-looking namespace.
+Same steps, same stop rule, same result block; the commands are in
+[references/cluster-mode.md](references/cluster-mode.md):
+
+1. Find the workload and its dependencies (`proxymock cluster dependencies`).
+2. Turn capture on: `proxymock cluster capture inject -n <namespace>
+   --workload <workload>` (MCP `cluster` `action=inject`), with
+   `--java-agent` for a JVM.
+3. Note the time in UTC, then drive traffic at the workload.
+4. Count what arrived with `proxymock cloud search <service> --from <time>`
+   until inbound, every outbound host and every database are there.
+5. Pull it into `proxymock/recorded-<name>` with `pull_remote_recording`.
+6. Turn capture off: `proxymock cluster capture uninject` (MCP
+   `action=uninject`).
+
+Use the kube context the user named, never another one, and ask before a
+production-looking namespace. Then summarize it as in step 5 above.
 
 ## Rules
 
@@ -171,7 +183,8 @@ End with exactly this block:
 - **Next:** one suggested next step, naming the skill or giving a prompt
 ```
 
-For this skill: **Ran** is the app command and the traffic source. **Outcome**
+For this skill: **Ran** is the app command (or the cluster, namespace and
+workload) and the traffic source. **Outcome**
 is `complete` or what is missing. **Numbers** are inbound pairs, outbound hosts
 and databases captured against those expected, and error-status pairs.
 **Artifacts** is the recording directory. **Next** is usually

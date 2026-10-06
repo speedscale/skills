@@ -1,18 +1,23 @@
 ---
 name: run-snapshot-replay
-description: Run a Speedscale snapshot or proxymock recording as a replay where it was recorded (a cluster workload through Speedscale cloud, or the app on this machine) and follow it to a result, including a check that local mocking took effect. Use when the user asks to "run this snapshot", "replay snapshot <id>", "replay it in the cluster", "kick off a replay", "watch the replay", or "is my replay done yet". For a local regression gate against a known target, use proxymock-regression-test. Hands off to analyze-replay-report, tune-snapshot-replay or improve-mock-match-rate.
-argument-hint: <snapshot-id | recording-dir> [--local | --cloud] [--workload <name>] [--test-config <id>]
+description: Run a Speedscale snapshot or proxymock recording as a replay where it was recorded (a cluster workload, through the kubeconfig or Speedscale cloud, or the app on this machine) and follow it to a result, as a regression check or a load test, including a check that local mocking took effect. Use when the user asks to "run this snapshot", "replay snapshot <id>", "replay it in the cluster", "load test it in the cluster", "kick off a replay", "watch the replay", or "is my replay done yet". proxymock-regression-test and proxymock-load-test hand a cluster workload to this skill. Hands off to analyze-replay-report, tune-snapshot-replay or improve-mock-match-rate.
+argument-hint: <snapshot-id | recording-dir> [--local | --cluster | --cloud] [--workload <name>] [--mode regression|load] [--test-config <id>]
 ---
 
 # Run a snapshot replay and monitor it
 
 Start one replay, watch it to a terminal status, and report the result with
-evidence. Two places a replay can run:
+evidence. Three ways a replay can run:
 
 | Mode | What runs where | Needs |
 | --- | --- | --- |
 | **Local** | `proxymock mock` answers the app's dependencies, `proxymock replay` sends the recorded requests to the app on this machine | proxymock and a way to start the app; no account, no cluster |
+| **Cluster** | proxymock stages the recording in the cluster through the kubeconfig, and the operator runs the replay; snapshot and report stay in the cluster | the Speedscale operator in the cluster and a kube context the user chose; no login |
 | **Cloud** | Speedscale cloud tells the registered cluster's operator to run the generator (and responder) against a workload | a Speedscale login and a cluster whose inspector is registered with the tenant |
+
+A cluster or cloud replay runs in one of two modes: **regression** (do the
+responses still match the recording) or **load** (latency and throughput
+under a load shape). The mode only picks the test config.
 
 Input: a cloud snapshot ID or a local recording directory
 (`proxymock/recorded-<name>`, `proxymock/snapshot-<id>/`). Optional: `local` or
@@ -43,9 +48,10 @@ It prints JSON with `origin` (`cluster`, `local`, `unknown`), `cluster`,
 | User said | Detector says | Mode |
 | --- | --- | --- |
 | `local` / "on my machine" / "with proxymock" | anything | Local |
-| `cloud` / "in the cluster" / names a cluster | anything | Cloud |
+| "in my cluster" / names a kube context / no Speedscale login | anything | Cluster |
+| `cloud` / names a registered cluster | anything | Cloud |
 | nothing | `origin: cluster`, `clusterRegistered: true` | Cloud, same cluster, namespace and workload |
-| nothing | `origin: cluster`, `clusterRegistered: false` | Ask: offer local mode, another registered cluster (`speedctl infra inspectors`), or the kubeconfig route |
+| nothing | `origin: cluster`, `clusterRegistered: false` | Ask: offer cluster mode through the kubeconfig, local mode, or another registered cluster (`speedctl infra inspectors`) |
 | nothing | `origin: local` | Local, against `localAddress` |
 | nothing | `origin: unknown` | Ask |
 
@@ -63,7 +69,29 @@ the report link right away, relay each new event as one line, and never cancel o
 your own. `--in <dir>` pushes a local recording as a new snapshot with its tuning
 blueprints; `--snapshot-id` does not.
 
-## 3. Local mode
+## 3. Cluster mode
+
+Steps, the load config and how to read the result are in
+[references/cluster-mode.md](references/cluster-mode.md). In short:
+
+```bash
+proxymock cluster replay start --in proxymock/recorded-<name> \
+  -n <namespace> --workload <workload> --snapshot-source local \
+  [--test-config <name>] --wait
+```
+
+- **regression**: the test config the user tuned, else the built-in
+  `regression`.
+- **load**: a workspace copy of `performance_100replicas`, sized for the
+  cluster (`proxymock test-config new <name> --from performance_100replicas`).
+- `--wait` prints the verdict, each goal and the notifications behind a miss,
+  and exits nonzero on a miss. `proxymock cluster replay status -n <namespace>
+  <replay-name>` (MCP `cluster` `action=replay-status`) shows the same.
+- The workspace's tuning blueprints and test config travel with the replay.
+  Use the kube context the user named, and ask before a production-looking
+  namespace: the operator restarts the workload to test it.
+
+## 4. Local mode
 
 No account or cluster. Every run goes under `proxymock/results/`, which is
 where proxymock writes by default and where `replay score`, `doctor` and the
@@ -147,11 +175,13 @@ End with exactly this block:
 - **Next:** one suggested next step, naming the skill or giving a prompt
 ```
 
-For this skill: **Ran** is where it ran and why (the detector's evidence).
-**Outcome** is the verdict (`Passed`, `Missed Goals`, `Error`, or the local
-verdict). **Numbers** are accuracy or pair counts, goals missed, measured match
-rate with passthrough count, and whether mocking was verified. **Artifacts** are
-the report link or the `proxymock/results/` run directories. **Next** is
+For this skill: **Ran** is where it ran and why (the detector's evidence), and
+for a cluster or cloud run the mode and test config. **Outcome** is the verdict
+(`Passed`, `Missed Goals`, `Error`, or the local verdict). **Numbers** are
+accuracy or pair counts, goals missed (for load: p95 latency and throughput
+against their goals), measured match rate with passthrough count, and whether
+mocking was verified. **Artifacts** are the report link, the cluster replay
+name and namespace, or the `proxymock/results/` run directories. **Next** is
 `analyze-replay-report` if it failed, `tune-snapshot-replay` for accuracy, or
 `improve-mock-match-rate` for mock misses. List every warning or error event
 above the block. Offer the next step, do not do it.

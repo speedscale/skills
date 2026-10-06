@@ -1,6 +1,6 @@
 ---
 name: proxymock-regression-test
-description: Run a regression test from a proxymock recording. Starts the app with its dependencies mocked, replays the recording at it, and gates on the per-RRPair verdict (response status AND body) plus baseline-relative new mismatches, or on a tuned test config's goals, catching status-code and field-level regressions that a clean requests.failed hides. Also creates the first regression gate for a service from one recording. Use when users ask to regression-test a service against recorded traffic, verify a code change did not break behavior, make a regression gate for their own service, or gate CI on a proxymock replay.
+description: Run a regression test from a proxymock recording. Starts the app with its dependencies mocked, replays the recording at it, and gates on the per-RRPair verdict (response status AND body) plus baseline-relative new mismatches, or on a tuned test config's goals, catching status-code and field-level regressions that a clean requests.failed hides. Also creates the first regression gate for a service from one recording. Use when users ask to regression-test a service against recorded traffic, verify a code change did not break behavior, make a regression gate for their own service, or gate CI on a proxymock replay. A service that runs as a Kubernetes workload goes to run-snapshot-replay in cluster mode with the regression mode.
 argument-hint: --in <recording-dir> --test-against <url> [--baseline <prior-replay-dir>] [--test-config <name>]
 ---
 
@@ -23,6 +23,24 @@ accuracy, passAssertPct, match rate) are defined in
 [`quality-loop`](../quality-loop/SKILL.md#terms-used-the-same-way-in-every-skill).
 
 **Requires proxymock v2.5.814 or newer.**
+
+## In a Kubernetes cluster
+
+When the service under test is a cluster workload, the replay runs there:
+use [`run-snapshot-replay`](../run-snapshot-replay/SKILL.md) in cluster mode
+with the **regression** mode. It stages the recording, the workspace's
+blueprints and the tuned test config through the kubeconfig and runs:
+
+```bash
+proxymock cluster replay start --in proxymock/recorded-<name> \
+  -n <namespace> --workload <workload> --snapshot-source local \
+  --test-config <name> --wait
+```
+
+The test config's goals are the gate (`passAssertPct >= 100` in the built-in
+`regression`), and the command exits nonzero on a miss, so CI can run it as
+is. There is no `--baseline` in a cluster: tune the tests first so a clean run
+passes. Report it with the result block below.
 
 ## 1. Start the app under test, mocked
 

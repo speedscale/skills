@@ -24,6 +24,7 @@ Start the mock-lab demonstration with its existing languages/go HTTP app and com
 | "Record traffic", "I need a recording" | **record-traffic** |
 | "What is in this recording?" | **proxymock-summarize-recording** |
 | "Run this recording or snapshot", replay it locally or in the cluster | **run-snapshot-replay** |
+| "Install Speedscale", "set up the operator" | **install-speedscale** |
 | "Replayed responses differ", "get the replay to pass", tests fail on IDs, timestamps, tokens | **tune-snapshot-replay** (the tests) |
 | Mock misses, `MISS`, passthrough, low match rate, any protocol | **improve-mock-match-rate** (the mocks) |
 | "Did my change break anything?", CI gate | **proxymock-regression-test** |
@@ -46,7 +47,9 @@ Tie-breakers:
 - **contract vs regression** is decided by the boundary. A boundary with an accepted OpenAPI schema uses `contract`, including your own inbound API. Recorded journeys and accepted business outcomes use `regression`; both apply to the same app.
 - **regression vs run-snapshot-replay** is decided by the target. A local app at
   a known URL that must pass a gate is `regression`. A snapshot to run where it
-  was recorded, often a cluster workload, is `run-snapshot-replay`.
+  was recorded, often a cluster workload, is `run-snapshot-replay`. A regression
+  gate or load test on a cluster workload is `run-snapshot-replay` too, in its
+  regression or load mode; `regression` and `load-test` hand it over.
 
 ## Terms (used the same way in every skill)
 
@@ -63,6 +66,19 @@ Tie-breakers:
 
 The flow for "set this up for my service". Do each step with its skill, and stop
 to report if one fails.
+
+First ask once, unless the user already said: **does the service run on this
+machine, or in a Kubernetes cluster?** The answer picks the mode of every step
+below; do not ask again per step.
+
+- **On this machine:** the steps as written.
+- **In a cluster:** the Speedscale operator has to be there first
+  ([`install-speedscale`](../install-speedscale/SKILL.md)). Record with
+  `record-traffic` in its cluster mode, then make the replay trustworthy and
+  gate it with `run-snapshot-replay` in cluster mode (regression mode). Tuning
+  (`tune-snapshot-replay`, `improve-mock-match-rate`) works on the pulled
+  recording on this machine; its blueprints and test configs travel with the
+  next cluster replay. Use the kube context the user named, never another.
 
 1. **Read the repo.** Find the run command, the port, the outbound HTTP hosts and
    any databases, and how the project already generates traffic. Run
@@ -81,8 +97,8 @@ to report if one fails.
    under mocks, baseline replay on the current code, then the gated command CI
    can run. Commit the recording, blueprints and test configs only after
    checking they hold no secrets.
-5. **Offer the next tier**: a load test, a chaos run, or the Kubernetes version
-   when it is available.
+5. **Offer the next tier**: a load test (`proxymock-load-test` locally, or
+   `run-snapshot-replay` in load mode in a cluster), or a chaos run.
 
 Where things live: recordings in `proxymock/recorded-<name>/`; every replay and
 mock run in `proxymock/results/<name>/`; tuning state in `proxymock/blueprints/`,

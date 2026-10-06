@@ -24,12 +24,20 @@ change, report it. Never mask, ignore or transform it away to raise the score.
 | Input | Meaning |
 | --- | --- |
 | Snapshot ID, report ID, or recording directory | what to tune; a report ID also gives you a first run |
-| `--local` / `--cloud` | where to run; default is where it was recorded |
+| `--local` / `--cluster` / `--cloud` | where to run; default is where it was recorded |
 | `--target-accuracy` | default 95 (% of replayed pairs matching) |
 | `--max-runs` | re-run budget; default 5 in the cloud, 10 locally |
 
 Confirm the budget once for cloud runs (each pushes a snapshot and uses cluster
 capacity). Ask before any production-looking namespace.
+
+**A workload replayed through the kubeconfig (`--cluster`)** reports a verdict
+and its goals, not per-pair results, so this loop cannot score it. Pull the
+recording (`record-traffic` cluster mode), iterate locally with the app behind
+the mock, then confirm once with
+[`run-snapshot-replay`](../run-snapshot-replay/SKILL.md) in cluster mode with
+`--test-config <name>`: the workspace's blueprints and test config travel with
+that replay.
 
 ## Prerequisites
 
@@ -94,6 +102,8 @@ Fall back to the full loop only if that one fix is not enough.
 4. **Re-run and score** against the same target, with the workspace carrying the
    change. **Local:** blueprints and test configs in the workspace apply
    automatically; run the app behind the mock again, with `--test-config <name>`.
+   **Cluster:** iterate locally (above) and confirm at the end with a cluster
+   replay, as in Inputs.
    **Cloud:** push the workspace, not the old snapshot:
    `proxymock cloud replay --in <workspace> --name tune-<n> ...` with the same
    cluster, namespace, workload, mocks and `--test-config` as the baseline.

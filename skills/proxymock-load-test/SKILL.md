@@ -1,6 +1,6 @@
 ---
 name: proxymock-load-test
-description: Run a quick load test by replaying recorded proxymock RRPair traffic at a target with parallel virtual users, then report latency percentiles, throughput, and match rate. Use when users ask for a load test, performance test, stress test, or to push concurrent traffic at a local app or service using recorded proxymock traffic. Start the app with its dependencies mocked first, and read the database caveat below before mocking a database.
+description: Run a quick load test by replaying recorded proxymock RRPair traffic at a target with parallel virtual users, then report latency percentiles, throughput, and match rate. Use when users ask for a load test, performance test, stress test, or to push concurrent traffic at a local app or service using recorded proxymock traffic. A service that runs as a Kubernetes workload goes to run-snapshot-replay in cluster mode with the load mode. Start the app with its dependencies mocked first, and read the database caveat below before mocking a database.
 argument-hint: --in <recording-dir> --test-against <url> [--vus N | --sessions N | --stage vus=N,for=D] [--for 30s | --times N] [--performance]
 ---
 
@@ -21,6 +21,25 @@ proxymock replay --in proxymock/recorded-<name> --test-against http://localhost:
 The bundled script `scripts/proxymock-load-test.sh` takes the same flags, adds
 `--output json --no-out`, and writes `summary.json` (aggregate and per-endpoint
 metrics). Use it when you want that file; otherwise the command above is enough.
+
+## In a Kubernetes cluster
+
+When the service is a cluster workload, load it where it runs: use
+[`run-snapshot-replay`](../run-snapshot-replay/SKILL.md) in cluster mode with
+the **load** mode. The load shape and the SLO gates live in a test config
+instead of flags:
+
+```bash
+proxymock test-config new <name> --from performance_100replicas
+# size generator.stages[0] (virtual users, duration) for the cluster; keep or edit the goals
+proxymock cluster replay start --in proxymock/recorded-<name> \
+  -n <namespace> --workload <workload> --snapshot-source local \
+  --test-config <name> --wait
+```
+
+The goals (average, p95 and p99 latency, transactions per second) decide the
+verdict, and the command exits nonzero on a miss. Report p95, p99 and
+throughput from the goals in the result block below.
 
 ## Inputs
 
