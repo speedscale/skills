@@ -133,7 +133,9 @@ commands. In short:
 1. **Discover.** `sh scripts/preflight.sh`, then resolve the mode, kube
    context, provider (EKS, GKE, AKS, minikube, kind, OpenShift), cluster name
    and any existing `speedscale-operator` release (upgrade it, never install a
-   second one).
+   second one). No cluster yet, or only ones the user did not mean? Offer to
+   create a local one (`kind create cluster --name speedscale-tutorial`, or
+   minikube) and install there; never into a context the user did not choose.
 2. **Prerequisites and speedctl.** Install `kubectl`, `helm` and `speedctl`
    in user space if missing, then `speedctl check` and repeat the tenant name
    back to the user.

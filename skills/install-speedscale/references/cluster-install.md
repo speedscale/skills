@@ -35,6 +35,27 @@ Read the whole report, then decide the **mode**:
   The local path, then sections 1-6 here.
 - **cli-only** - user explicitly wants speedctl for a cluster someone else
   installed. Sections 1-4 and 6 (verification only).
+- **cluster, but no cluster yet** - the user wants the cluster path (for
+  example the advanced tutorial) and the preflight finds no reachable
+  cluster, or only clusters they did not mean. Offer to create a local one on
+  Docker (Docker Desktop on macOS and Windows) and say what it is. Use what is
+  installed: kind if `kind` is on `PATH`, else minikube, else install kind
+  (`brew install kind`, or the official binary to `~/.local/bin`). Give it a
+  dedicated name:
+
+  ```bash
+  kind create cluster --name speedscale-tutorial
+  # or: minikube start -p speedscale-tutorial
+  ```
+
+  Both switch kubectl's current context to the new cluster. Confirm with
+  `kubectl config current-context` (`kind-speedscale-tutorial` or
+  `speedscale-tutorial`), then continue with sections 1-6 against it, with
+  `CLUSTER_NAME=speedscale-tutorial`.
+
+Never install into a context the user did not choose. If the current context
+is a shared or production cluster and the user asked for a tutorial or a
+local cluster, name that context, create the local one, and work only there.
 
 Resolve these before moving on; each later section consumes them:
 
