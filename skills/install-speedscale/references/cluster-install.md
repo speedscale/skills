@@ -38,20 +38,25 @@ Read the whole report, then decide the **mode**:
 - **cluster, but no cluster yet** - the user wants the cluster path (for
   example the advanced tutorial) and the preflight finds no reachable
   cluster, or only clusters they did not mean. Offer to create a local one on
-  Docker (Docker Desktop on macOS and Windows) and say what it is. Use what is
-  installed: kind if `kind` is on `PATH`, else minikube, else install kind
-  (`brew install kind`, or the official binary to `~/.local/bin`). Give it a
-  dedicated name:
+  Docker (Docker Desktop on macOS and Windows) and say what it is. Use
+  minikube, installing it if it is missing (`brew install minikube`, or the
+  official binary to `~/.local/bin`), and give it a dedicated profile:
 
   ```bash
-  kind create cluster --name speedscale-tutorial
-  # or: minikube start -p speedscale-tutorial
+  minikube start -p speedscale-tutorial --driver=docker --memory=4g
   ```
 
-  Both switch kubectl's current context to the new cluster. Confirm with
-  `kubectl config current-context` (`kind-speedscale-tutorial` or
-  `speedscale-tutorial`), then continue with sections 1-6 against it, with
-  `CLUSTER_NAME=speedscale-tutorial`.
+  Prefer minikube over kind: eBPF capture does not find pods on kind's
+  cgroup layout yet, so on kind a workload can only be recorded with the
+  sidecar (`proxymock cluster capture inject --sidecar --tls-out`), which
+  restarts it. Create kind only when the user asks for it, and say so.
+
+  minikube switches kubectl's current context to the new cluster. Confirm
+  with `kubectl config current-context` (`speedscale-tutorial`), then
+  continue with sections 1-6 against it, with
+  `CLUSTER_NAME=speedscale-tutorial`. A cluster created for the agent
+  tutorial needs no demo app (`deployDemo: ""`): the tutorial deploys its
+  own.
 
 Never install into a context the user did not choose. If the current context
 is a shared or production cluster and the user asked for a tutorial or a

@@ -38,8 +38,11 @@ proxymock cluster replay start --in proxymock/recorded-<name> \
 ```
 
 The goals (average, p95 and p99 latency, transactions per second) decide the
-verdict, and the command exits nonzero on a miss. Report p95, p99 and
-throughput from the goals in the result block below.
+verdict, and the command exits nonzero on a miss. To compare two builds, read
+the per-endpoint latency the result lists, at a light load and with the
+database reset between runs (see run-snapshot-replay's cluster mode). Report
+p95, p99 and throughput from the goals, and the endpoint that changed, in the
+result block below.
 
 ## Inputs
 

@@ -153,7 +153,8 @@ Same steps, same stop rule, same result block; the commands are in
 1. Find the workload and its dependencies (`proxymock cluster dependencies`).
 2. Turn capture on: `proxymock cluster capture inject -n <namespace>
    --workload <workload>` (MCP `cluster` `action=inject`), with
-   `--java-agent` for a JVM.
+   `--java-agent` for a JVM, then restart the workload so connections it
+   already holds are opened again under capture.
 3. Note the time in UTC, then drive traffic at the workload.
 4. Count what arrived with `proxymock cloud search <service> --from <time>`
    until inbound, every outbound host and every database are there.

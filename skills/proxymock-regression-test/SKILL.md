@@ -37,9 +37,12 @@ proxymock cluster replay start --in proxymock/recorded-<name> \
   --test-config <name> --wait
 ```
 
-The test config's goals are the gate (`passAssertPct >= 100` in the built-in
-`regression`), and the command exits nonzero on a miss, so CI can run it as
-is. There is no `--baseline` in a cluster: tune the tests first so a clean run
+The test config's goals are the gate (`passAssertPct >= 100`), and the
+command exits nonzero on a miss, so CI can run it as is. The built-in
+`regression` config checks field paths but not value types, so it misses a
+number that becomes a string; gate on a copy with `matchType` set on its
+`httpResponseSchema` assertion (see run-snapshot-replay's cluster mode).
+There is no `--baseline` in a cluster: tune the tests first so a clean run
 passes. Report it with the result block below.
 
 ## 1. Start the app under test, mocked

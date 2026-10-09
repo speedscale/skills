@@ -28,8 +28,25 @@ that unless the user asks otherwise.
 
 | Mode | Test config | What decides the verdict |
 | --- | --- | --- |
-| **regression** | the config the user tuned in `tune-snapshot-replay`, else the built-in `regression` | its goals, usually `passAssertPct >= 100`: every response matches the recording |
+| **regression** | the config the user tuned in `tune-snapshot-replay`, else a copy of the built-in `regression` with value types checked (below) | its goals, usually `passAssertPct >= 100`: every response matches the recording |
 | **load** | a workspace copy of a built-in performance config, sized for the cluster | its latency and throughput goals |
+
+The built-in `regression` config compares each response's status, content
+type and field paths, not its values, so the fields that change on every run
+need no tuning. It also misses a field whose type changes, such as a number
+that becomes a string. For a regression gate, copy it and add the type check
+to its `httpResponseSchema` assertion:
+
+```bash
+proxymock test-config new <name> --from regression
+# in proxymock/testconfigs/<name>.json, on the httpResponseSchema assertion:
+#   "config": {"matchType": "true"}
+proxymock test-config compile <name>
+```
+
+Run the baseline replay with it once on known-good code: it should pass. A
+field that legitimately changes type between runs goes in that assertion's
+`ignore` list.
 
 For load, copy a performance config and size it. The built-ins assume a large
 cluster (100 virtual users for 5 minutes); a laptop cluster wants about 10 for
@@ -45,6 +62,18 @@ Performance configs run in low data mode: responses are not compared, and the
 verdict comes from the goals alone. To fail on dropped requests, add a goal on
 `responseRate`.
 
+**Comparing two builds** (a slow change, `APP_SLOW=1` against `0`): the
+goals cover every request together, so an endpoint that is a small share of
+the traffic barely moves them. Read the per-endpoint latency the result lists
+instead, and compare the same endpoint across the runs. Keep the runs
+comparable:
+
+- Use a light load (2 virtual users for 30 seconds). Heavy load measures
+  contention, which can hide a per-request cost such as an N+1 query.
+- A replay against a real database writes to it, and each run adds rows the
+  next one reads. Reset the tables the recorded writes touch before each run.
+- Run both builds with the same config, mocks and data.
+
 A workspace test config and the workspace's tuning blueprints are staged with
 the replay, so what was tuned on this machine applies in the cluster.
 
@@ -57,8 +86,8 @@ proxymock cluster replay start --in proxymock/recorded-<name> \
 ```
 
 `--wait` prints each stage as it happens, then the result: the verdict,
-success rate, every goal with its expected and actual value, and the
-notifications behind a miss. It exits nonzero when the replay missed its goals
+success rate, every goal with its expected and actual value, the
+notifications behind a miss, and each endpoint's request count and latency. It exits nonzero when the replay missed its goals
 or did not complete, so the same command is a CI gate.
 
 MCP: the `cluster` tool with `action=replay-start` (`snapshot_source` `local`),

@@ -38,10 +38,22 @@ MCP equivalent: the `cluster` tool with `action=inject` and
 `action=capture-status`.
 
 - **eBPF capture (the default)** attaches to the running pods without a
-  restart. Connections the app opened before capture attached (a database
-  pool) are picked up mid-stream; that is enough for replay and mocks.
+  restart, but an HTTPS connection the app opened before capture attached
+  (a keep-alive connection to an API it already called) is not captured.
+  Restart the workload after turning capture on, so every connection is
+  opened under capture:
+
+  ```bash
+  kubectl -n <namespace> rollout restart deployment/<workload>
+  kubectl -n <namespace> rollout status deployment/<workload>
+  ```
 - **JVM workloads**: add `--java-agent`. It restarts the workload, and the
   agent captures what eBPF cannot see inside the JVM's TLS.
+- **kind clusters**: eBPF capture does not find pods on kind's cgroup layout
+  yet (nettap logs `cgroup path for container ... not found`). Record with the
+  sidecar instead: `proxymock cluster capture inject --sidecar --tls-out`. It
+  restarts the workload, and `--tls-out` lets it read outbound HTTPS. Turn it
+  off with `proxymock cluster capture uninject --sidecar`.
 - **Go workloads**: eBPF reads HTTPS through the binary's symbols. A binary
   built with `-ldflags="-s -w"` is stripped, and its HTTPS calls are not
   captured. Rebuild without those flags if outbound hosts are missing.
