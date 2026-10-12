@@ -12,9 +12,9 @@ The loop: record real traffic once, keep it as a snapshot (RRPair files), run yo
 
 ## Recording to saved scenarios
 
-For “turn this small recording into regression, contract, load and chaos tests” or “improve OpenAPI coverage and NFR scenarios,” read [the recording-to-scenarios workflow](references/recording-to-scenarios.md). Compose the specialist skills through this entry point. Native product features execute and score tests; the agent proposes cases and carries setup/evidence between skills. Mocks are the reusable dependencies that make repeated and concurrent runs possible. Complete each requested scenario type and retain unresolved prerequisites while independent scenarios run.
+For “turn this small recording into regression, contract, load and chaos tests” or “improve OpenAPI coverage and NFR scenarios,” read [the recording-to-scenarios workflow](references/recording-to-scenarios.md). Compose the specialist skills through this entry point. Native product features execute and score tests; the agent proposes cases and carries setup/evidence between skills. Mocks are the reusable dependencies that make repeated and concurrent runs possible. Complete each requested scenario type and retain unresolved prerequisites while independent scenarios run. Saved tests are complete only after their exact entry point runs again without a model or manual repair; proposed commands alone are not a runnable result.
 
-Start the mock-lab demonstration with its existing languages/go HTTP app and committed recording. Keep first-run setup to the language runtime and proxymock; use native commands and the existing harness. Databases, Docker and additional services belong to apps that already require them.
+Start the mock-lab demonstration with the user's selected language app and its existing recording. Keep first-run setup to the language runtime and proxymock; use native commands and the existing harness. Databases, Docker and additional services belong to apps that already require them.
 
 ## Routing
 
