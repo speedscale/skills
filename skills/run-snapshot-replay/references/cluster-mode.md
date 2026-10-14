@@ -48,6 +48,14 @@ Run the baseline replay with it once on known-good code: it should pass. A
 field that legitimately changes type between runs goes in that assertion's
 `ignore` list.
 
+When the app writes to Kafka, the responses alone cannot show a regression in
+what it produces: the mock acknowledges every record. Add a `kafkaOutput`
+assertion to the same group to compare the records the app produced and the
+offsets it committed with the recording, and put fields that change on every
+run (timestamps, generated IDs) in its `ignore` list. The differences are in
+the result's `kafkaDiff` (`-o json`), and in `kafka-diff.json` for a cloud
+replay's report.
+
 For load, copy a performance config and size it. The built-ins assume a large
 cluster (100 virtual users for 5 minutes); a laptop cluster wants about 10 for
 a minute:

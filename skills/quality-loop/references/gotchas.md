@@ -103,4 +103,4 @@ are not recordings and are skipped), blueprint staging, Node proxy support
 `NODE_EXTRA_CA_CERTS`), and whether ports 8080 and 4140 are free. A dev build
 that prints `Client Version: undefined` skips the version check. Exit `0`
 healthy, `1` with a `MISSING:` list, `2` on usage errors; warnings never fail
-it.
+it. These port checks use example defaults; verify the selected app's actual ports and readiness separately.

@@ -15,6 +15,8 @@ proxymock mock --in ./proxymock/recorded-<name> \
   -- <your app command>
 ```
 
+Derive the fault scope from this app's captured dependency routes and use its documented start command. Example paths and ports are illustrative, not app requirements.
+
 The faults are process flags, not data. The recording is served as-is: no copy, no RRPair edits, no variant to validate, nothing to roll back. What you observe is your service's resilience behavior, which is the point.
 
 **Requires proxymock v2.5.814 or newer.** Connection faults in particular differ on older builds.
@@ -30,7 +32,7 @@ proxymock mock --in ./proxymock/recorded-<name> --proxy-out-port 4140 \
 
 # or let proxymock wrap the app so the proxy env is wired for you
 proxymock mock --in ./proxymock/recorded-<name> \
-  --fault '/v1/projects:connection=drop' -- go run .
+  --fault '<dependency-path-regexp>:connection=drop' -- <your app command>
 ```
 
 `mock` runs until you stop it; there is no pass/fail exit code to gate on. The gate is whatever you assert about your app *while* it serves, so pair it with `proxymock replay` (proxymock-regression-test) or your own test driver. The bundled `quality-loop.sh chaos` is optional convenience that builds this exact line; the native command is the contract.

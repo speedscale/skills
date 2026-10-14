@@ -84,9 +84,10 @@ in any CI (k6, bruno, pytest, Make); `quality-loop.sh regression` only prints it
 
 ## Which scorer decides the exit code
 
-- **No `--test-config`:** the verdict decides. `0` pass, `3` a pair fails now
-  that did not fail in `--baseline`, `1` the run did not complete or a
-  `--fail-if` tripped.
+- **No `--test-config`:** the verdict is evidence, not an implicit gate. A plain
+  replay exits `0` even with response mismatches. `3` needs `--baseline` plus
+  `--fail-on-new-mismatch` (a pair fails now that did not fail in the baseline),
+  and `1` means the run did not complete or a `--fail-if` tripped.
 - **With `--test-config <name>`:** the config's goals decide (usually
   `passAssertPct >= 100`). The run exits `1` on a missed goal, and `3` when a
   baseline gate also finds a new mismatch, while `replay-verdict.json` can still

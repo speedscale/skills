@@ -83,7 +83,7 @@ A projection only counts what the offline analysis can see. A re-run shows what 
 | Timestamps / nonces / cache-busters | cause: datetime or random | Mask (constant) — high confidence |
 | Pagination cursors, idempotency keys | cause: random on a query/body field | Mask (constant) |
 | Lookup keys carrying data | cause: pii on a query/body field | Prefer smart_replace_recorded (maps recorded values) over a blind mask — the value selects WHICH mock answers |
-| Auth material | cause: jwt, or an auth/api-key/cookie header | Do NOT auto-accept. Surface to the user: masking can create false matches; token re-signing or a credentials preflight is usually the right fix |
+| Auth material | cause: jwt, or an auth/api-key/cookie header | Do NOT auto-accept. Surface to the user: masking can create false matches; a Replace credentials blueprint (fetch a fresh token, or re-sign the JWT) is usually the right fix |
 | IDs inside JSON bodies | body-leaf recs, incl. embedded-JSON paths | Accept the body-field rec |
 | Opaque low-confidence drift | cause: opaque | Inspect with mocks action=similar and reason: a real discriminator must NOT be masked (it would return the wrong mock) |
 | SQL traffic drifting | sql tech in the misses | Check sql_report before masking — literal values in statements often need a different strategy |
@@ -101,7 +101,7 @@ A projection only counts what the offline analysis can see. A re-run shows what 
 | Never recorded | "No similar recorded signatures", or statements, keys or topics the recording never had | No transform fixes it. Re-record covering that code path |
 | Passthrough: the dependency was not mocked | passthrough calls in matchRate, hosts in topMissingHosts | Check that the replay mocked that dependency (the mocks list, or where the cloud replay attached its mocks) and that it was captured when recording (for example TLS traffic that was never decrypted). Fix the run setup or re-record, not the blueprint |
 | Wrong recording: matched, but the app got a different answer than recorded | the match rate is fine but accuracy dropped on the calls behind it | Several recordings share one signature and are returned in order. Undo the broadest mask that merged them. If the calls really are identical and the answer depends on order, report it rather than masking further |
-| Credential | jwt, auth, api-key or cookie fields | Stop and ask the user. Token re-signing or a credentials preflight is usually the fix, not a mask |
+| Credential | jwt, auth, api-key or cookie fields | Stop and ask the user. A Replace credentials blueprint (fetch a fresh token, or re-sign the JWT) is usually the fix, not a mask |
 
 ## Reading mocks action=similar causes
 

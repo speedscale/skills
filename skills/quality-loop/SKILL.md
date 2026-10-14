@@ -14,7 +14,7 @@ The loop: record real traffic once, keep it as a snapshot (RRPair files), run yo
 
 For “turn this small recording into regression, contract, load and chaos tests” or “improve OpenAPI coverage and NFR scenarios,” read [the recording-to-scenarios workflow](references/recording-to-scenarios.md). Compose the specialist skills through this entry point. Native product features execute and score tests; the agent proposes cases and carries setup/evidence between skills. Mocks are the reusable dependencies that make repeated and concurrent runs possible. Complete each requested scenario type and retain unresolved prerequisites while independent scenarios run. Saved tests are complete only after their exact entry point runs again without a model or manual repair; proposed commands alone are not a runnable result.
 
-Start the mock-lab demonstration with the user's selected language app and its existing recording. Keep first-run setup to the language runtime and proxymock; use native commands and the existing harness. Databases, Docker and additional services belong to apps that already require them.
+Discover the selected app's runtime, start command, ports, dependencies, authentication and test harness from its own documentation and code. Reuse its setup and native proxymock commands; add no runtime, service or generic runner solely for this workflow. When the user requests capture, make a fresh recording before deriving scenarios; an existing fixture does not satisfy that request. Use a supplied recording when the user asks to work from it.
 
 ## Routing
 
@@ -60,7 +60,7 @@ Tie-breakers:
 | **Accuracy** | Share of replayed pairs whose response matched the recorded one, scored by proxymock's built-in status and body rules (`accuracy.rate`). |
 | **passAssertPct** | Percent of test-config assertions that passed. It exists only when a `--test-config` with assertions ran, and is stricter than accuracy: the built-in `standard` config asserts headers and cookies too. |
 | **Verdict** | `replay-verdict.json`: the per-pair pass or mismatch result of the built-in scoring, plus new mismatches against a `--baseline`. |
-| **Exit code** | Without `--test-config`, the verdict decides it. With one, that config's goals (usually `passAssertPct >= 100`) decide it, and the verdict can say pass while the run exits nonzero. |
+| **Exit code** | Plain replay can exit 0 with response mismatches: its verdict is evidence, not an implicit exit gate. Explicit `--test-config` goals, baseline/fix gates and `--fail-if` each gate their own conditions. Check native response scoring separately when correctness is required; a passing latency budget does not establish it. |
 
 ## Do it to your own service
 
