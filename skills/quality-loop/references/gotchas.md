@@ -98,7 +98,9 @@ verbatim; `PROXYMOCK=/path/to/proxymock` overrides the binary. Modes:
 
 `doctor [--root DIR]` reports proxymock presence and version, recording
 directories with pair counts (results of earlier runs under `proxymock/results/`
-are not recordings and are skipped), blueprint staging, Node proxy support
+are not recordings and are skipped), and with no recording the
+`proxymock inventory` of bootstrap starting points instead of a failure,
+blueprint staging, Node proxy support
 (`fetch` ignores proxy env vars before 22.21/24; set `NODE_USE_ENV_PROXY=1` and
 `NODE_EXTRA_CA_CERTS`), and whether ports 8080 and 4140 are free. A dev build
 that prints `Client Version: undefined` skips the version check. Exit `0`

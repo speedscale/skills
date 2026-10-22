@@ -1,6 +1,6 @@
 ---
 name: quality-loop
-description: The entry point for testing a service with recorded traffic using proxymock. Routes an intent to the right skill (record, run a replay, tune the tests, tune the mocks, regression gate, load test, verify a fix, chaos, contract, compare), defines the shared terms (HIT/MISS/PASSTHROUGH, match rate, accuracy, verdict), walks the "do it to my own service" flow, and includes a doctor that checks the environment. Use when users ask to turn a recording into saved scenarios, improve OpenAPI coverage or NFR checks, or how to test a change with recorded traffic, which proxymock skill or command applies, to set up the loop in a repo, to test their own service, or whether the environment is ready.
+description: The entry point for testing a service with recorded traffic using proxymock. Routes an intent to the right skill (record, run a replay, tune the tests, tune the mocks, regression gate, load test, verify a fix, chaos, contract, compare), defines the shared terms (HIT/MISS/PASSTHROUGH, match rate, accuracy, verdict), walks the "do it to my own service" flow, bootstraps a first regression test for a service or new endpoint with no recording yet (from a cloud capture, repo traffic, an OpenAPI, protobuf or GraphQL spec, or the code), and includes a doctor that checks the environment. Use when users ask how to add tests to a new service or endpoint they have not recorded, to turn a recording into saved scenarios, improve OpenAPI coverage or NFR checks, or how to test a change with recorded traffic, which proxymock skill or command applies, to set up the loop in a repo, to test their own service, or whether the environment is ready.
 argument-hint: <doctor|regression|verify-fix|load|chaos|contract|compare|summarize|load-test> [args...]
 ---
 
@@ -21,6 +21,7 @@ Discover the selected app's runtime, start command, ports, dependencies, authent
 | Intent sounds like | Skill |
 | --- | --- |
 | "Turn this recording into scenarios", "fill coverage gaps", "deepen NFR tests" | **quality-loop**, [recording-to-scenarios workflow](references/recording-to-scenarios.md) |
+| "No traffic yet", "add tests for this new endpoint", "bootstrap a regression test", "I only have an OpenAPI / proto / GraphQL spec" | **quality-loop**, [bootstrap workflow](references/bootstrap.md) |
 | "Record traffic", "I need a recording" | **record-traffic** |
 | "What is in this recording?" | **proxymock-summarize-recording** |
 | "Run this recording or snapshot", replay it locally or in the cluster | **run-snapshot-replay** |
@@ -28,6 +29,7 @@ Discover the selected app's runtime, start command, ports, dependencies, authent
 | "Replayed responses differ", "get the replay to pass", tests fail on IDs, timestamps, tokens | **tune-snapshot-replay** (the tests) |
 | Mock misses, `MISS`, passthrough, low match rate, any protocol | **improve-mock-match-rate** (the mocks) |
 | "Did my change break anything?", CI gate | **proxymock-regression-test** |
+| "Write unit tests from this recording", "turn the snapshot into test cases" | **traffic-to-tests** |
 | "What can this service sustain?", load numbers, SLO gates | **proxymock-load-test**, and **proxymock-perf-container** to judge the number |
 | "Prod incident: reproduce it and prove the fix" | **proxymock-verify-fix** |
 | "How does it behave when the downstream misbehaves?" | **proxymock-chaos-mock** |
@@ -45,6 +47,10 @@ Tie-breakers:
   plus "did I break it" is `regression`. An incident capture (recorded errors
   are the truth) plus "is it fixed" is `verify-fix`.
 - **contract vs regression** is decided by the boundary. A boundary with an accepted OpenAPI schema uses `contract`, including your own inbound API. Recorded journeys and accepted business outcomes use `regression`; both apply to the same app.
+- **regression vs traffic-to-tests** is decided by the artifact. A replay of
+  the recording gated on proxymock's verdict is `regression`. Test code in the
+  repository's own framework, run by its own test command, is
+  `traffic-to-tests`.
 - **regression vs run-snapshot-replay** is decided by the target. A local app at
   a known URL that must pass a gate is `regression`. A snapshot to run where it
   was recorded, often a cluster workload, is `run-snapshot-replay`. A regression
@@ -82,8 +88,13 @@ below; do not ask again per step.
 
 1. **Read the repo.** Find the run command, the port, the outbound HTTP hosts and
    any databases, and how the project already generates traffic. Run
-   `scripts/quality-loop.sh doctor` to check proxymock, ports and Node support.
+   `scripts/quality-loop.sh doctor` to check proxymock, ports and Node support;
+   with no recording yet it also prints `proxymock inventory`, the ranked
+   starting points for the first requests.
 2. **Record one run** with [`record-traffic`](../record-traffic/SKILL.md).
+   When the service or the endpoint under test has never been recorded, follow
+   the [bootstrap workflow](references/bootstrap.md) for where its first
+   requests come from and how to review them, then come back for step 3.
    Local first. Stop only when inbound traffic and every outbound host and
    database are in the recording. Wait for the app on its own port (or with
    `--app-health-endpoint`), never through proxymock's inbound port 4143,
@@ -130,4 +141,6 @@ For this skill: **Ran** is the flow and steps completed (or the `doctor` run).
 **Outcome** is `ready`, `gate created`, or the step that stopped. **Numbers** are
 pairs recorded, replay accuracy or measured match rate, and the gate's baseline
 verdict. **Artifacts** are the recording, baseline and gate command. **Next** is
-the next tier, or the skill for the step that failed.
+the next tier, or the skill for the step that failed. A bootstrap adds the entry
+point used and not used, coverage against the spec or router, and any
+fabricated mocks, as its reference says.

@@ -79,6 +79,13 @@ code paths. It is not logic-grade data. All measured:
 - **Path params become match-any templates** (`${{param:id}}` matches any
   concrete id), including params the spec constrains with an enum.
 
+With `--direction inbound` the output is tests for your own service, and the
+run ends with a `PLACEHOLDERS:` list of tests whose request still sends
+`example_value` or `${{param:...}}`. Those are drivers for a first recording,
+not a baseline: the quality-loop
+[bootstrap workflow](../quality-loop/references/bootstrap.md) rewrites them and
+records the app's real responses.
+
 ## Interpretation
 
 - **VIOLATION on recorded traffic**: the dependency drifted from its spec, or

@@ -221,9 +221,11 @@ cmd_doctor() {
       -type f \( -name '*Z.md' -o -name '*Z.json' \) -print 2>/dev/null \
       | sed -e 's#/[^/]*/[^/]*$##' | sort -u
   )
+  local bootstrap=0
   if [[ ${#rec_dirs[@]} -eq 0 ]]; then
-    echo "MISS recordings: no RRPair recording dirs under $root"
-    missing+=("no RRPair recording dirs found; enter the loop with the record-traffic skill (proxymock record -- <app cmd>, then drive real traffic)")
+    # No recording is where a bootstrap starts, not a broken environment.
+    echo "info recordings: none under $root yet; bootstrap starting points follow (references/bootstrap.md)"
+    bootstrap=1
   else
     local pairs
     for d in "${rec_dirs[@]}"; do
@@ -285,6 +287,15 @@ cmd_doctor() {
     done
   else
     echo "info ports: lsof not present, skipping port check"
+  fi
+
+  if [[ $bootstrap -eq 1 ]]; then
+    echo
+    if "$PM" inventory --help >/dev/null 2>&1; then
+      "$PM" inventory --root "$root" || warns+=("proxymock inventory failed; read the repo for specs, traffic artifacts and routes by hand")
+    else
+      warns+=("this proxymock has no 'inventory' command; upgrade, or read the repo for specs, traffic artifacts and routes by hand")
+    fi
   fi
 
   echo

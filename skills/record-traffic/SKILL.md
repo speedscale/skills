@@ -104,6 +104,10 @@ Use what the repo already has, aimed at `http://localhost:4143`:
 - a traffic driver or load script (look for `cmd/traffic`, `scripts/`, `k6`,
   `Makefile` targets such as `make smoke`)
 - the integration or end-to-end tests, if they take a base URL
+- `proxymock inventory` lists every traffic source the repo has, ranked; for
+  a service or endpoint that has never been recorded, the quality-loop
+  [bootstrap workflow](../quality-loop/references/bootstrap.md) turns a spec,
+  a cloud capture or the code into requests to send here
 - otherwise ask the user to exercise the app (curl, a browser, their client)
   through port 4143 and tell you when they are done
 
