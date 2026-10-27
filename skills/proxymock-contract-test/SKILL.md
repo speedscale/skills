@@ -1,13 +1,13 @@
 ---
 name: proxymock-contract-test
-description: Contract-test recorded or replayed traffic against an OpenAPI spec or a gRPC .proto with proxymock validate, reporting exact field-path violations, and mock a dependency straight from its spec with proxymock generate before any recording exists. Use when users ask whether a dependency's behavior matches its spec, to validate recorded traffic against an OpenAPI or protobuf contract, or to mock an HTTP or gRPC API from its spec alone.
-argument-hint: --spec <openapi.(json|yaml) | service.proto> --in <rrpair-dir>
+description: Contract-test recorded or replayed traffic against an OpenAPI spec, a gRPC .proto or a GraphQL schema with proxymock validate, reporting exact field-path violations, and mock a dependency straight from its spec or schema with proxymock generate before any recording exists. Use when users ask whether a dependency's behavior matches its spec, to validate recorded traffic against an OpenAPI, protobuf or GraphQL contract, or to mock an HTTP, gRPC or GraphQL API from its spec or schema alone.
+argument-hint: --spec <openapi.(json|yaml) | service.proto | schema.graphql | introspection.json | graphql-url> --in <rrpair-dir>
 ---
 
 # proxymock Contract Test
 
 Contract testing from the assets the quality loop already has: an OpenAPI 3.0+
-spec or a gRPC `.proto`, and RRPair traffic. One native command:
+spec, a gRPC `.proto` or a GraphQL schema, and RRPair traffic. One native command:
 
 ```bash
 proxymock validate --spec ./openapi.yaml --in ./proxymock/recorded-<name>/<dependency-host>
@@ -18,7 +18,29 @@ included), checks the response body for type, required fields, enum values and
 undocumented fields, resolves local and component `$ref`s, and parses YAML
 itself — no PyYAML, no `ruby -ryaml`.
 
-**Requires proxymock v2.5.814 or newer.**
+**Requires proxymock v2.5.814 or newer.** GraphQL schemas need a build whose
+`proxymock generate --help` mentions GraphQL.
+
+## GraphQL
+
+`--spec` also takes a GraphQL schema: SDL (`.graphql`, `.graphqls`, `.gql`), an
+introspection result saved as JSON, or the `http(s)` URL of a running endpoint,
+which is introspected on each run and cached beside the recording as
+`<host>_<port>.introspection.json`.
+
+```bash
+proxymock validate --spec ./schema.graphql --in ./proxymock/recorded-<name>
+proxymock validate --spec http://localhost:8080/graphql --in ./proxymock/recorded-<name>
+```
+
+Each recorded GraphQL request's document is parsed and its selection resolved
+against the schema, so aliases, named and inline fragments and `__typename`
+are handled. The response `data` is checked for type, non-null, enum
+membership, selected fields that are missing, and fields that were not
+selected, e.g. `$.data.plans[1].price: type mismatch, expected Int, got string
+("49")`. A request whose root field is not in the schema is `NO_ROUTE`.
+Requests that are not GraphQL (a health check, a REST route, a persisted
+query with no query text) are skipped. The exit codes below are the same.
 
 ## Choose the boundary and its schema
 
@@ -96,6 +118,21 @@ proxymock generate --direction outbound -I ./proto --out ./generated \
 
 ```bash
 proxymock generate ./openapi.yaml --out ./generated --include-optional
+proxymock mock --in ./generated
+```
+
+A GraphQL schema works the same way, from SDL, introspection JSON or the
+endpoint URL. Each root query and mutation field becomes one named operation
+at a single endpoint (`--host`, `--port`, and `--path`, default `/graphql`);
+`--include-paths` and `--exclude-paths` take operation globs such as `query.*`
+or `mutation.createUser`, and `--tag-filter` is rejected. Subscriptions are
+listed under `SKIPPED:`. A GraphQL mock matches the exact document, selection
+and variables, so a client that sends a different selection of the same field
+gets no match: rewrite the generated document to the client's, or record the
+client instead.
+
+```bash
+proxymock generate ./schema.graphql --out ./generated
 proxymock mock --in ./generated
 ```
 
