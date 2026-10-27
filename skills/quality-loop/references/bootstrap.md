@@ -22,7 +22,7 @@ It ranks what the repo offers and marks one `BASE` and the `FILL`:
 | 1b | A fresh cluster capture (offered, never auto-chosen) | `record-traffic` cluster mode, after the user confirms context and workload |
 | 2 | Postman, HAR, GoReplay, k6, Gatling, an e2e suite, a traffic driver | `import_traffic` for files, or run the suite or driver at the record port |
 | 3a | An OpenAPI spec | `generate` with direction `inbound`, then rewrite placeholders |
-| 3b | Protobuf for gRPC | One `grpcurl` call per unary RPC, written from the `.proto` |
+| 3b | Protobuf for gRPC | `generate` with direction `inbound` on the `.proto`, then rewrite placeholders |
 | 3c | A GraphQL schema | One named operation per root query and mutation field |
 | 4 | The code | Requests you write from the routes and handlers |
 
@@ -36,12 +36,13 @@ Put every candidate in `proxymock/candidates-<name>/`. Replay writes a `.replay/
 - **Rank 1a.** Pull into `proxymock/recorded-prod-<date>/` and leave it untouched: it is evidence of real behavior. Review it for credentials and personal data before anything else reads it. Replay it from there: replay only adds its `.replay/` metadata, never edits the pairs. Replay sends the inbound pairs; the recording's outbound pairs stay as evidence of the real dependency responses.
 - **Rank 2.** `proxymock import <format> <file> --out proxymock/candidates-<name>`. An e2e suite, k6 script or traffic driver needs no import: step 3 runs it.
 - **Rank 3a.** `proxymock generate --direction inbound --include-optional --out proxymock/candidates-<name> <spec>`. Its `PLACEHOLDERS:` block lists the tests whose request still sends `example_value` or `${{param:...}}`. Rewrite each with a value from the code, seed data or the spec's examples, or delete it. Spec-generated requests for error statuses are often valid requests, so they do not reach the error path: write those in the filler instead.
-- **Rank 3b and 3c.** Write the requests from the spec, unary RPCs and queries first. Mark streaming RPCs and subscriptions as untested until one has been recorded and replayed.
+- **Rank 3b.** `proxymock generate --direction inbound --include-optional -I <import root> --out proxymock/candidates-<name> <service.proto>` writes one gRPC test per unary RPC and lists streaming RPCs as skipped. The same `PLACEHOLDERS:` rule applies. The markdown shows each message by field number (`"1:LEN": "example_value"`): edit the value in place and keep the key. Drive skipped streaming RPCs with `grpcurl` at the record port, or mark them as untested until one has been recorded and replayed.
+- **Rank 3c.** Write the requests from the schema, queries first. Mark subscriptions as untested until one has been recorded and replayed.
 - **Rank 4, always.** For the new endpoint or the untested routes: the happy path, each validation error, not found, and the auth failure if the service has auth. Five to fifteen requests, as RRPair files in the candidates directory or as a small script in the repo's own language.
 
 ## 2. Dependencies
 
-When the real dependencies are reachable from this machine, step 3 records them and nothing else is needed. When one is not, stand up a mock before recording, in this order of preference: the pulled cloud recording; `generate --direction outbound` from the dependency's own spec; a WireMock or HAR import; RRPairs written from its documentation. Report generated and hand-written mocks as fabricated so the user knows to replace them. Never run `generate --direction both` on the service's own spec to mock its dependencies: that mocks the service.
+When the real dependencies are reachable from this machine, step 3 records them and nothing else is needed. When one is not, stand up a mock before recording, in this order of preference: the pulled cloud recording; `generate --direction outbound` from the dependency's own OpenAPI spec or `.proto`; a WireMock or HAR import; RRPairs written from its documentation. Report generated and hand-written mocks as fabricated so the user knows to replace them. Never run `generate --direction both` on the service's own spec to mock its dependencies: that mocks the service.
 
 ## 3. Realize: drive the candidates through a recording
 
@@ -60,7 +61,7 @@ The recording is about to become a golden file.
 
 - List the inbound pairs by route and status. Every status must be one a candidate meant to produce. A 4xx or 5xx nobody intended means the request or the code is wrong: fix one and re-record. Never bless an accidental error.
 - Every outbound host and database the app uses must be in the recording.
-- With an OpenAPI spec, run `proxymock validate --spec <spec> --in proxymock/recorded-<name>` on the inbound pairs and save `proxymock coverage --spec <spec> --in proxymock/recorded-<name> --json` beside the results. That coverage file is the number the next session improves.
+- With an OpenAPI spec or a `.proto`, run `proxymock validate --spec <spec> --in proxymock/recorded-<name>` on the inbound pairs and save `proxymock coverage --spec <spec> --in proxymock/recorded-<name> --json` beside the results. Add `-I <import root>` when the `.proto` imports other files. That coverage file is the number the next session improves.
 - Check headers and bodies for secrets and personal data. A pulled production capture is the usual offender.
 
 ## 5 and 6. Tune and gate

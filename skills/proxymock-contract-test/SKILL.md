@@ -1,13 +1,13 @@
 ---
 name: proxymock-contract-test
-description: Contract-test recorded or replayed traffic against an OpenAPI spec with proxymock validate, reporting exact JSON-path violations, and mock a dependency straight from its spec with proxymock generate before any recording exists. Use when users ask whether a dependency's behavior matches its spec, to validate recorded traffic against an OpenAPI contract, or to mock an API from its spec alone.
-argument-hint: --spec <openapi.(json|yaml)> --in <rrpair-dir>
+description: Contract-test recorded or replayed traffic against an OpenAPI spec or a gRPC .proto with proxymock validate, reporting exact field-path violations, and mock a dependency straight from its spec with proxymock generate before any recording exists. Use when users ask whether a dependency's behavior matches its spec, to validate recorded traffic against an OpenAPI or protobuf contract, or to mock an HTTP or gRPC API from its spec alone.
+argument-hint: --spec <openapi.(json|yaml) | service.proto> --in <rrpair-dir>
 ---
 
 # proxymock Contract Test
 
 Contract testing from the assets the quality loop already has: an OpenAPI 3.0+
-spec and RRPair traffic. One native command:
+spec or a gRPC `.proto`, and RRPair traffic. One native command:
 
 ```bash
 proxymock validate --spec ./openapi.yaml --in ./proxymock/recorded-<name>/<dependency-host>
@@ -56,6 +56,42 @@ flag to downgrade them. If additive response fields are non-breaking for you,
 filter them out of the report yourself or expect the exit 2 and read the
 violation list rather than the code.
 
+## gRPC contracts from a .proto
+
+The same three commands take a `.proto`; the spec type is detected from the
+file extension. `-I`/`--proto-path` (repeatable) adds import roots, and the
+spec's own directory is always searched.
+
+```bash
+proxymock validate --spec ./proto/orders/v1/orders.proto -I ./proto \
+  --in ./proxymock/recorded-<name>
+proxymock coverage --spec ./proto/orders/v1/orders.proto -I ./proto \
+  --in ./proxymock/recorded-<name> --json
+proxymock generate --direction outbound -I ./proto --out ./generated \
+  ./proto/orders/v1/orders.proto
+```
+
+- **validate** matches each gRPC RRPair to `/package.Service/Method` and
+  checks the decoded response message: a wire type that contradicts the
+  declared field type, an enum number the enum does not declare, a field
+  number the message does not declare, and missing proto2 `required` fields.
+  Paths use `.proto` field names, e.g.
+  `$.items[0].quantity: type mismatch, expected int32, got length-delimited ("lots")`.
+  Proto3 fields without explicit presence are never "missing": a zero value is
+  not on the wire. A call that ended with a non-OK gRPC status carries no
+  message and conforms. Exit codes are the same as for OpenAPI.
+- **coverage** reports every RPC as an operation (`POST /package.Service/Method`),
+  gRPC status names (`OK`, `NOT_FOUND`) as statuses, and response message
+  fields as fields, in the same JSON shape.
+- **generate** writes one RRPair per unary RPC as gRPC over HTTP/2, the way
+  proxymock records it, so `proxymock mock` serves it to a gRPC client and
+  `proxymock replay` sends it to a gRPC server unchanged. Streaming RPCs are
+  listed as skipped. `--include-paths` and `--exclude-paths` take
+  `/package.Service/Method` globs or a bare `/package.Service`, and
+  `--tag-filter` is rejected. Messages follow the rules below: implicit-presence
+  fields are set, `optional` fields only with `--include-optional`, the first
+  member of each `oneof`, and the first non-zero enum member.
+
 ## Mocking a dependency from its spec, before any recording exists
 
 ```bash
@@ -75,7 +111,8 @@ code paths. It is not logic-grade data. All measured:
   the exception — they get a real member of their enum, so generated bodies
   pass `validate` against the spec they came from. Add `example:` values where
   a plausible string matters.
-- **One response per status.** No response variety within a status code.
+- **One response per status.** No response variety within a status code. A
+  `.proto` yields one `OK` response per RPC and no error statuses.
 - **Path params become match-any templates** (`${{param:id}}` matches any
   concrete id), including params the spec constrains with an enum.
 
