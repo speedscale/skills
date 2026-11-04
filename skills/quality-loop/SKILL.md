@@ -1,6 +1,6 @@
 ---
 name: quality-loop
-description: The entry point for testing a service with recorded traffic using proxymock. Routes an intent to the right skill (record, run a replay, tune the tests, tune the mocks, regression gate, load test, verify a fix, chaos, contract, compare), defines the shared terms (HIT/MISS/PASSTHROUGH, match rate, accuracy, verdict), walks the "do it to my own service" flow, bootstraps a first regression test for a service or new endpoint with no recording yet (from a cloud capture, repo traffic, an OpenAPI, protobuf or GraphQL spec, or the code), and includes a doctor that checks the environment. Use when users ask how to add tests to a new service or endpoint they have not recorded, to turn a recording into saved scenarios, improve OpenAPI coverage or NFR checks, or how to test a change with recorded traffic, which proxymock skill or command applies, to set up the loop in a repo, to test their own service, or whether the environment is ready.
+description: The entry point for testing a service with recorded traffic using proxymock. Routes coding tasks that need captured traffic as context to traffic-to-code. Routes an intent to the right skill (record, run a replay, tune the tests, tune the mocks, regression gate, load test, verify a fix, chaos, contract, compare), defines the shared terms (HIT/MISS/PASSTHROUGH, match rate, accuracy, verdict), walks the "do it to my own service" flow, bootstraps a first regression test for a service or new endpoint with no recording yet (from a cloud capture, repo traffic, an OpenAPI, protobuf or GraphQL spec, or the code), and includes a doctor that checks the environment. Use when users ask how to add tests to a new service or endpoint they have not recorded, to turn a recording into saved scenarios, improve OpenAPI coverage or NFR checks, or how to test a change with recorded traffic, which proxymock skill or command applies, to set up the loop in a repo, to test their own service, or whether the environment is ready.
 argument-hint: <doctor|regression|verify-fix|load|chaos|contract|compare|summarize|load-test> [args...]
 ---
 
@@ -29,6 +29,7 @@ Discover the selected app's runtime, start command, ports, dependencies, authent
 | "Replayed responses differ", "get the replay to pass", tests fail on IDs, timestamps, tokens | **tune-snapshot-replay** (the tests) |
 | Mock misses, `MISS`, passthrough, low match rate, any protocol | **improve-mock-match-rate** (the mocks) |
 | "Did my change break anything?", CI gate | **proxymock-regression-test** |
+| "Fix this bug using traffic", "implement this integration from recorded requests" | **traffic-to-code** |
 | "Write unit tests from this recording", "turn the snapshot into test cases" | **traffic-to-tests** |
 | "What can this service sustain?", load numbers, SLO gates | **proxymock-load-test**, and **proxymock-perf-container** to judge the number |
 | "Prod incident: reproduce it and prove the fix" | **proxymock-verify-fix** |
@@ -38,6 +39,8 @@ Discover the selected app's runtime, start command, ports, dependencies, authent
 | "Why did this report fail?" | **analyze-replay-report** |
 
 Tie-breakers:
+
+- **traffic-to-code vs traffic-to-tests** is decided by the requested change. Implement or repair application code using relevant exchanges with [traffic-to-code](../traffic-to-code/SKILL.md). Generate test cases from a recording with traffic-to-tests. A coding task can use those tests without requiring a replay.
 
 - **Tests vs mocks** is decided by which side is wrong. Responses from the app
   differ from the recording: `tune-snapshot-replay`. The app's outbound calls

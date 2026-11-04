@@ -44,11 +44,7 @@ Authenticating one authenticates the other.
 Run `sh scripts/preflight.sh` first if you want a read-only report of what is
 already installed (run scripts by absolute path from this skill's directory).
 
-**1. Get a free API key.** `proxymock init` needs an account API key even for
-local-only use, because `proxymock mcp install` refuses to run without an
-initialized config. Signup is free: <https://app.speedscale.com/proxymock/signup>
-(enterprise tenants: <https://app.speedscale.com/profile>). If the user has no
-account yet, stop and send them there.
+**1. Choose the scope.** Installing the CLI and authenticating never authorize changes to another application. Ask which coding agent and whether it should receive MCP registration, bundled skills, or both. Use the current application repository for project scope. Do not silently add every detected agent. MCP installation itself works without a Speedscale account; recording and cloud workflows may need initialization.
 
 **2. Install proxymock.**
 
@@ -67,9 +63,7 @@ present. Re-run the install script: it checks the installed binary against the
 latest release and replaces it only when they differ (Homebrew installs: `brew
 update && brew upgrade speedscale/tap/proxymock`; without `brew update`,
 Homebrew can keep a copy of the tap up to a day old and miss a new release).
-Then check `proxymock version`. A version with a `-g<hash>` suffix is a local
-development build: leave it and say so. After an upgrade, re-run `proxymock
-mcp install --yes` (step 4) so the agent gets the new tools and skills.
+Then check `proxymock version`. A version with a `-g<hash>` suffix is a local development build: leave it and say so. Upgrading the binary does not authorize agent changes. Refresh only the explicitly selected client, scope and skill choice, preserving user edits and removal.
 
 **3. Initialize with the key.** Default: ask the user to run `proxymock init`
 in their own terminal (browser sign-in, writes the config). If
@@ -78,34 +72,29 @@ in their own terminal (browser sign-in, writes the config). If
 Enterprise; free accounts use the browser flow once). Never ask the user to
 paste a key into chat.
 
-**4. Install the MCP server** into every detected coding agent:
+**4. Optionally connect the selected agent.** Replace `claude-code` with the user's chosen client. Preview the exact paths before making changes:
 
 ```bash
-proxymock mcp install --yes
+proxymock mcp install --client claude-code --skills --dry-run
+proxymock mcp install --client claude-code --skills --yes
 ```
 
-For an agent that is not auto-detected, `proxymock mcp json` prints the
-config block. `proxymock mcp install --http` serves Streamable HTTP for a
-remote dev box or container; it defaults to port 7799 (clear of common app
-ports and proxymock's own), and `proxymock mcp run --http` serves the same
-default, so pass the same `--port <n>` to both to change it. Installs made by
-older releases keep the URL they wrote (port 8080). The agent must be
-restarted to load the server.
+`--yes` only skips confirmation. It does not select clients. `mcp install --yes` without a client selection now fails without changing files. Use `--all-clients` only when the user explicitly requests all detected clients. The old `mcp --install` flag is deprecated; use the scoped subcommand.
 
-**5. The full skill set** (record, replay, tune, regression, load, chaos and
-the rest) is bundled in the proxymock binary and needs no download.
+Project scope is preferred where the client supports it. Add `--scope user` only for an explicitly requested global installation. The preview names global-only destinations. Codex project configuration still requires the user's normal host trust decision; never change trust settings. Add `--http` for Streamable HTTP on a remote dev box/container; the default is local stdio. The HTTP port defaults to 7799; pass the same port to `mcp run --http`. Restart the selected agent to load changes.
 
-- **Claude Code:** `proxymock mcp install --yes` already wrote every skill to
-  `~/.claude/skills`. Nothing else to install.
-- **Other agents (Codex, Cursor, Gemini, opencode, Kiro...):** either
-  `npx skills add speedscale/skills` (needs Node.js; add `-y` when no human
-  is present) or `proxymock mcp skills export --dir <that agent's skills dir>`
-  (offline; safe to re-run after a proxymock upgrade).
+**5. Skills are optional.** `--skills` adds bundled skills where supported; omit it for MCP only. Use `--skills-only` for skills without MCP. For a Claude Code project installation, inspect `proxymock mcp skills list --dir ./.claude/skills`. User scope uses `~/.claude/skills`; Codex uses `.agents/skills` and Kiro uses `.kiro/skills` in the selected scope. The binary bundles the skills, with no download.
 
-Verify with `proxymock mcp skills list`: every skill shows `installed`
-(`--dir <dir>` checks another agent's directory; `outdated` means a re-run of
-`mcp install` or `mcp skills export` will refresh it). Anything else means
-`mcp install` did not reach that agent.
+Managed installation preserves modified and unowned skills. An older installation without an ownership record is preserved; inspect it and use `proxymock mcp json` for manual registration if needed. `proxymock mcp skills export --dir <directory>` is a separate explicit export that replaces existing files; do not use it to bypass preservation of edited skills.
+
+To remove an owned integration, select the same client and scope:
+
+```bash
+proxymock mcp uninstall --client claude-code --skills --dry-run
+proxymock mcp uninstall --client claude-code --skills --yes
+```
+
+Removal preserves edited files and unrelated settings. Keep the `.proxymock-install.json` ownership record next to the client config so upgrades and removal can identify their own artifacts.
 
 **6. Prove it locally.** No cluster involved.
 

@@ -99,7 +99,7 @@ Without the MCP server, make a snapshot and pull it:
 
 ```bash
 speedctl create snapshot --name <name> --service <service> --start <start-utc> \
-  --filter '(cluster IS "<cluster name>")'
+  --cluster <cluster name> --namespace <namespace>
 proxymock cloud pull snapshot <snapshot-id>
 ```
 

@@ -12,5 +12,6 @@ proxymock-verify-fix
 quality-loop
 record-traffic
 run-snapshot-replay
+traffic-to-code
 traffic-to-tests
 tune-snapshot-replay
