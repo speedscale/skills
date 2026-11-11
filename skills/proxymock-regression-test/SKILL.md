@@ -45,6 +45,22 @@ number that becomes a string; gate on a copy with `matchType` set on its
 There is no `--baseline` in a cluster: tune the tests first so a clean run
 passes. Report it with the result block below.
 
+## Credential setup and outbound expectations
+
+Before configuring `httpOutput`, compare the recorded credential provider with the local runtime's provider. A workload may acquire credentials through workload identity, an OAuth token endpoint or a metadata service, while a local test deliberately supplies static credentials. Token caching and refresh timing can also change these setup calls. The availability of a recorded credential exchange does not require the local app to repeat it.
+
+Establish this from the app's credential configuration and the recorded request before the first replay. A missing call alone is not evidence that it is optional. If credential acquisition is under test, preserve that expectation and reproduce the provider flow instead.
+
+For a deliberately replaced provider, use the existing `httpOutput.config.ignore` host/path selector for only the proven credential endpoint. Keep the recording intact and list the excluded endpoint, the provider change and the unexercised credential behavior in the results. For example:
+
+```json
+{"type":"httpOutput","config":{"ignore":"identity.example.net/oauth/token","mockRequired":"payments.example.net"}}
+```
+
+`ignore` scopes the outbound comparison; `mockRequired` independently requires matching calls to be served by mocks. Setting `mockRequired` alone does not restrict which recorded calls are compared. Use the narrowest supported host/path selector, never an automatic STS, OAuth or cloud-host exclusion. Confirm that the selected endpoint has no application behavior being tested; if credential and business operations share the same host/path and cannot be separated by the selector, do not exclude it.
+
+Keep application dependency arguments and call counts strict, require their mocks, disable passthrough and inspect all observed mock misses and passthroughs. An unexpected application call, a missing business call or wrong request arguments must still fail. Keep response comparisons, evaluated assertions and report-level outbound results as separate gates; a passing per-response verdict does not override a failed `httpOutput` result. Do not remove the assertion or raise count tolerance to accommodate a replaced provider.
+
 ## 1. Start the app under test, mocked
 
 The replay needs the app running with its dependencies answered from the same

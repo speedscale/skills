@@ -83,11 +83,7 @@ pair to the recording.
 
 Language notes:
 
-- **Java, HTTPS calls fail with `PKIX path building failed`**: the JVM does not
-  trust proxymock's CA. Run `proxymock admin certs --jks` and start the app with
-  `~/.speedscale/certs/cacerts.jks` as its truststore
-  (`-Djavax.net.ssl.trustStore=...`, plus `trustStorePassword` if the output names
-  one). Newer proxymock sets this for a wrapped JVM.
+- **Java, HTTPS calls fail with `PKIX path building failed`**: the JVM does not trust proxymock's CA. Set `JAVA_HOME` before starting proxymock so it can build the JKS, or run `proxymock admin certs --jks` and configure `~/.speedscale/certs/cacerts.jks` as the JVM truststore explicitly. JVM auto-configuration supports direct Java/build-tool launches and `env` wrappers with repeated `-u NAME`, optional `--`, and `NAME=value` assignments, including nested `env` wrappers. Example: `proxymock record -- env -u AWS_PROFILE AWS_ACCESS_KEY_ID=dummy java -jar app.jar`. Existing `JAVA_TOOL_OPTIONS` assignments are preserved; `-u JAVA_TOOL_OPTIONS` discards inherited options while proxymock still supplies its proxy/truststore options. Other env options (including `-i`, `-S`, and long options), shell commands such as `sh -c`, and arbitrary launcher scripts are not inspected; configure the JVM explicitly for those forms.
 - **Node**: built-in `fetch` ignores proxy variables on old versions. Use Node
   22.21 or newer. Newer proxymock sets `NODE_USE_ENV_PROXY` and
   `NODE_EXTRA_CA_CERTS`; on older ones export both yourself
