@@ -31,6 +31,7 @@ Discover the selected app's runtime, start command, ports, dependencies, authent
 | "Did my change break anything?", CI gate | **proxymock-regression-test** |
 | "Fix this bug using traffic", "implement this integration from recorded requests" | **traffic-to-code** |
 | "Write unit tests from this recording", "turn the snapshot into test cases" | **traffic-to-tests** |
+| "Regression- or performance-test our frontend / dashboard", "reuse our Playwright tests", browser journeys in staging, a cluster or locally | **browser-journey-tests** |
 | "What can this service sustain?", load numbers, SLO gates | **proxymock-load-test**, and **proxymock-perf-container** to judge the number |
 | "Prod incident: reproduce it and prove the fix" | **proxymock-verify-fix** |
 | "How does it behave when the downstream misbehaves?" | **proxymock-chaos-mock** |
@@ -54,6 +55,10 @@ Tie-breakers:
   the recording gated on proxymock's verdict is `regression`. Test code in the
   repository's own framework, run by its own test command, is
   `traffic-to-tests`.
+- **browser-journey-tests vs regression or load-test** is decided by the entry
+  point. A frontend driven through a browser by Playwright specs is
+  `browser-journey-tests`, which hands its backend recording to `load-test`. An
+  API replayed from recorded inbound requests is `regression` or `load-test`.
 - **regression vs run-snapshot-replay** is decided by the target. A local app at
   a known URL that must pass a gate is `regression`. A snapshot to run where it
   was recorded, often a cluster workload, is `run-snapshot-replay`. A regression
