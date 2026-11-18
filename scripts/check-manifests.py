@@ -62,15 +62,22 @@ names = {
     ".claude-plugin/plugin.json": claude.get("name"),
     "plugin.json": portable.get("name"),
 }
-for p in claude_mkt.get("plugins", []) + codex_mkt.get("plugins", []):
-    names.setdefault("marketplace entries", p.get("name"))
+for path, mkt in ((".claude-plugin/marketplace.json", claude_mkt), (".agents/plugins/marketplace.json", codex_mkt)):
+    entries = mkt.get("plugins", [])
+    if len(entries) != 1:
+        fail(f"{path}: expected one plugin entry, got {len(entries)}")
+    for i, p in enumerate(entries):
+        names[f"{path} plugins[{i}]"] = p.get("name")
 if len(set(names.values())) != 1:
     fail(f"plugin name differs across manifests: {names}")
+# Every documented install command uses speedscale@speedscale-skills.
+if claude_mkt.get("name") != codex_mkt.get("name"):
+    fail(f"marketplace names differ: {claude_mkt.get('name')} != {codex_mkt.get('name')}")
 
 if "icon" in claude:
     check_icon(claude["icon"], ".claude-plugin/plugin.json")
 
-if not re.fullmatch(r"\d+\.\d+\.\d+", portable.get("version", "")):
+if not re.fullmatch(r"\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?", portable.get("version", "")):
     fail("plugin.json: version must be semver (required for Codex submissions)")
 if not portable.get("author", {}).get("name"):
     fail("plugin.json: author.name is required")

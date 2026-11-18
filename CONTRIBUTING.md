@@ -5,7 +5,7 @@ The skills in `skills/` are generated, not edited here. Each one ships inside th
 This repository owns:
 
 - `README.md` and this file
-- `.claude-plugin/marketplace.json` and `.claude-plugin/plugin.json`, the Claude Code plugin and marketplace. They set no `version`, so Claude Code versions installs by commit and every skill sync reaches users. Do not add one.
+- `.claude-plugin/marketplace.json` and `.claude-plugin/plugin.json`, the Claude Code plugin and marketplace. They set no `version`, so Claude Code versions installs by commit and each skill sync is a new version users can update to. Do not add one.
 - `plugin.json`, `.agents/plugins/marketplace.json` and `assets/icon.png`, the Codex and ChatGPT plugin and its directory listing. Codex caches installs by `version`, which tracks the proxymock release whose skills are in `skills/`; the release sync sets it.
 - Both plugins discover every directory under `skills/`, so adding or removing a skill needs no manifest change.
 - `scripts/check-skills.sh` and `scripts/check-manifests.py`, which CI runs on every change. `check-skills.sh` also runs `claude plugin validate` through `npx`. Run the checks locally before pushing:

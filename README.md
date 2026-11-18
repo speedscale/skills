@@ -25,7 +25,7 @@ the proxymock MCP server into your agent.
 
 ## Codex and the ChatGPT desktop app
 
-Add this repository as a plugin marketplace, then install the plugin:
+These commands need the Codex CLI (`npm install -g @openai/codex`). Add this repository as a plugin marketplace, then install the plugin:
 
 ```bash
 codex plugin marketplace add speedscale/skills
@@ -46,7 +46,7 @@ The skills run `proxymock` on the machine where your service runs, so they need 
 
 | Route | Command |
 | --- | --- |
-| Claude Code plugin | `/plugin marketplace add speedscale/skills` then `/plugin install speedscale@speedscale-skills` (updates arrive with every skill sync) |
+| Claude Code plugin | `/plugin marketplace add speedscale/skills` then `/plugin install speedscale@speedscale-skills` (each skill sync is a new version; run `/plugin marketplace update speedscale-skills` or turn on auto-update for the marketplace to get it) |
 | Codex plugin | `codex plugin marketplace add speedscale/skills` then `codex plugin add speedscale@speedscale-skills` |
 | Any agent, via the skills CLI | `npx skills add speedscale/skills` |
 | Already have proxymock | `proxymock mcp install --yes` installs every skill for Claude Code; `proxymock mcp skills export --dir <your skills dir>` for any other agent |
