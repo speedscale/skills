@@ -1,0 +1,47 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "speedscale",
+  "version": "1.0.0",
+  "description": "Install Speedscale end to end (CLIs, operator Helm chart, MCP wiring), record traffic with proxymock, tune the mocks and the tests, analyze replay reports, and gate changes with regression and load tests",
+  "author": {
+    "name": "Speedscale",
+    "email": "support@speedscale.com",
+    "url": "https://speedscale.com"
+  },
+  "homepage": "https://docs.speedscale.com",
+  "repository": "https://github.com/speedscale/skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "speedscale",
+    "proxymock",
+    "kubernetes",
+    "helm",
+    "mocking",
+    "traffic-replay"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Speedscale",
+        "shortDescription": "Test with real traffic",
+        "longDescription": "Test a service with its own recorded traffic. These skills drive proxymock, our local CLI, and Speedscale Cloud from your coding agent.\n\nThe agent can install proxymock and speedctl, and the Speedscale Operator in a Kubernetes cluster. It records a service's inbound and outbound traffic, including Postgres, MySQL, gRPC, Redis and Kafka, then replays that traffic against your build with the dependencies mocked. From one recording you get a regression gate, a load test, a check that a bug fix holds, fault injection into a mock, and contract checks against an OpenAPI or protobuf spec. When a replay fails, the agent reads the report and tunes the mocks or the tests until the replay is accurate.\n\nBuilt for backend and platform engineers who want tests based on what their service does in production. The skills run proxymock commands on your machine, so they need a desktop or CLI agent with shell access. Speedscale Cloud features need a Speedscale account.",
+        "developerName": "Speedscale",
+        "category": "Developer Tools",
+        "capabilities": [],
+        "websiteURL": "https://speedscale.com",
+        "supportURL": "https://docs.speedscale.com",
+        "privacyPolicyURL": "https://speedscale.com/legal/privacy/",
+        "termsOfServiceURL": "https://speedscale.com/legal/terms-service/",
+        "defaultPrompt": [
+          "Install Speedscale and proxymock for this project",
+          "Record this service's traffic and build a regression test from it",
+          "Analyze this replay report and tell me why it failed"
+        ],
+        "brandColor": "#2E5268",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/icon.png"
+      },
+      "onboardingSkill": "./skills/install-speedscale/SKILL.md"
+    }
+  }
+}

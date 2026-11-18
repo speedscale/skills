@@ -23,29 +23,31 @@ installs the Speedscale Operator with values chosen for your platform
 (EKS, GKE, AKS, minikube, kind, OpenShift), verifies the result, and wires
 the proxymock MCP server into your agent.
 
-## ChatGPT desktop app
+## Codex and the ChatGPT desktop app
 
-Open the ChatGPT desktop app, select Codex, and open your project's folder. The source is the [install-speedscale skill](https://github.com/speedscale/skills/tree/main/skills/install-speedscale). Paste this prompt to install it:
+Add this repository as a plugin marketplace, then install the plugin:
 
-```text
-Use $skill-installer to install skills/install-speedscale from the speedscale/skills GitHub repository.
+```bash
+codex plugin marketplace add speedscale/skills
+codex plugin add speedscale@speedscale-skills
 ```
 
-In your next message, ask Codex to use it:
+Restart the ChatGPT desktop app so it picks up the plugin, select Codex, and open your project's folder. Then ask Codex to use the install skill:
 
 ```text
 Use $install-speedscale to set up Speedscale for my project. Check what is already installed and tell me which components I need. Ask before changing a Kubernetes cluster. Never print my API key.
 ```
 
-If the new skill does not appear, restart the app. You can also use `$install-speedscale` later for an upgrade or repair.
+You can also use `$install-speedscale` later for an upgrade or repair. Run `codex plugin marketplace upgrade speedscale-skills` to pick up new plugin releases.
 
-ChatGPT on the web and mobile cannot install these skills directly from a GitHub URL. Those surfaces can use them after Speedscale publishes a plugin in ChatGPT's plugin directory.
+The skills run `proxymock` on the machine where your service runs, so they need an agent with shell access there. ChatGPT on the web and mobile can't use them.
 
 ## Other ways to get the skills
 
 | Route | Command |
 | --- | --- |
-| Claude Code plugin | `/plugin marketplace add speedscale/skills` then `/plugin install speedscale@speedscale-skills` |
+| Claude Code plugin | `/plugin marketplace add speedscale/skills` then `/plugin install speedscale@speedscale-skills` (updates arrive with every skill sync) |
+| Codex plugin | `codex plugin marketplace add speedscale/skills` then `codex plugin add speedscale@speedscale-skills` |
 | Any agent, via the skills CLI | `npx skills add speedscale/skills` |
 | Already have proxymock | `proxymock mcp install --yes` installs every skill for Claude Code; `proxymock mcp skills export --dir <your skills dir>` for any other agent |
 | Manual | copy `skills/<name>/` into your agent's skills directory |
@@ -83,7 +85,7 @@ For a runnable example, try the tutorial app in [mock-lab](https://github.com/sp
 
 ## How this repo is maintained
 
-Every skill here ships inside proxymock and is mirrored from the Speedscale monorepo (`speedctl/mcp/skills/`) on each proxymock release by `proxymock mcp skills export`, so this repo always matches what the shipped binary installs. `skills/.proxymock-managed` lists the mirrored skills. Change a skill in the monorepo; a pull request that edits `skills/` here is overwritten by the next release. The README, the plugin manifests and the CI check are maintained here. The plugin discovers every directory under `skills/`, so adding or removing a skill needs no manifest change. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Every skill here ships inside proxymock and is mirrored from the Speedscale monorepo (`speedctl/mcp/skills/`) on each proxymock release by `proxymock mcp skills export`, so this repo always matches what the shipped binary installs. `skills/.proxymock-managed` lists the mirrored skills. Change a skill in the monorepo; a pull request that edits `skills/` here is overwritten by the next release. The README, the plugin manifests (`.claude-plugin/` for Claude Code, `plugin.json` and `.agents/plugins/marketplace.json` for Codex and ChatGPT) and the CI check are maintained here. The plugin discovers every directory under `skills/`, so adding or removing a skill needs no manifest change. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Docs: https://docs.speedscale.com · Community: https://slack.speedscale.com ·
 Support: support@speedscale.com

@@ -1,7 +1,7 @@
 {
   "name": "speedscale",
+  "displayName": "Speedscale",
   "description": "Install Speedscale end to end (CLIs, operator Helm chart, MCP wiring), record traffic with proxymock, tune the mocks and the tests, analyze replay reports, and gate changes with regression and load tests",
-  "version": "0.1.0",
   "author": {
     "name": "Speedscale",
     "email": "support@speedscale.com"
@@ -15,5 +15,10 @@
     "kubernetes",
     "helm",
     "mocking"
-  ]
+  ],
+  "icon": "./assets/icon.png",
+  "documentationUrl": "https://docs.speedscale.com",
+  "supportUrl": "https://docs.speedscale.com",
+  "privacyPolicyUrl": "https://speedscale.com/legal/privacy/",
+  "termsOfServiceUrl": "https://speedscale.com/legal/terms-service/"
 }

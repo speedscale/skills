@@ -21,5 +21,6 @@ for dir in skills/*/; do
   done
   echo "ok   $name"
 done
-python3 -c 'import json,sys; [json.load(open(p)) for p in sys.argv[1:]]' .claude-plugin/marketplace.json .claude-plugin/plugin.json && echo "ok   plugin manifests parse"
+python3 scripts/check-manifests.py || status=1
+npx -y @anthropic-ai/claude-code@2.1.327 plugin validate . || status=1
 exit $status
