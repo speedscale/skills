@@ -124,7 +124,7 @@ find proxymock/recorded-<name> -type f | sed 's#.*/##' | sed 's/.*\.//' | sort |
 - Every **outbound host** from step 1 has its own directory.
 - Every **database** from step 1 shows up as pairs too, in `localhost-<port>/`
   when the mapped backend runs on this machine (for example `localhost-5432/`).
-  Postgres and MySQL RRPairs are `.json` even though HTTP is `.md`. Older
+  Database RRPairs (Postgres, MySQL, SQL Server, Oracle) are `.json` even though HTTP is `.md`. Older
   proxymock builds put them in `localhost/` next to the inbound requests; if you
   see `.json` files there, they are database calls, so filter inbound pairs by
   direction (`direction: IN`) rather than by directory.

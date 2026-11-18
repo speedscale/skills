@@ -48,7 +48,7 @@ result block below.
 
 - `--in`: the **recording directory** (`proxymock/recorded-<name>`). Replay
   sends only its inbound requests. Do not narrow to `<recording>/localhost`: when
-  a database was mapped to localhost, its Postgres or MySQL pairs are written
+  a database was mapped to localhost, its database pairs are written
   there too, next to the inbound ones. If you must narrow, filter inbound pairs
   by direction (`direction: IN` in markdown, `"direction": "IN"` in JSON), not by
   directory.
