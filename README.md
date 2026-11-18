@@ -32,7 +32,7 @@ codex plugin marketplace add speedscale/skills
 codex plugin add speedscale@speedscale-skills
 ```
 
-Restart the ChatGPT desktop app so it picks up the plugin, select Codex, and open your project's folder. Then ask Codex to use the install skill:
+Quit and reopen the ChatGPT desktop app so it picks up the plugin, then open your project's folder. The plugin appears in Settings under Plugins. Ask ChatGPT to use the install skill:
 
 ```text
 Use $install-speedscale to set up Speedscale for my project. Check what is already installed and tell me which components I need. Ask before changing a Kubernetes cluster. Never print my API key.
