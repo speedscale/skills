@@ -22,5 +22,10 @@ for dir in skills/*/; do
   echo "ok   $name"
 done
 python3 scripts/check-manifests.py || status=1
-npx -y @anthropic-ai/claude-code@2.1.327 plugin validate . || status=1
+# The release sync job runs this script too and may have no Node; GitHub CI does.
+if command -v npx >/dev/null 2>&1; then
+  npx -y @anthropic-ai/claude-code@2.1.327 plugin validate . || status=1
+else
+  echo "skip claude plugin validate (no npx)"
+fi
 exit $status
