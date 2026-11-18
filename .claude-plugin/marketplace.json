@@ -14,7 +14,6 @@
       "name": "speedscale",
       "source": "./",
       "description": "Install Speedscale end to end, record traffic with proxymock, run and monitor replays, tune the mocks and the tests until a replay is accurate and fully mocked, analyze replay reports, and gate changes with regression, verify-fix, contract, chaos, load and performance tests over recorded traffic",
-      "version": "0.1.0",
       "category": "devops",
       "tags": [
         "speedscale",

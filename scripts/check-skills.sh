@@ -21,5 +21,11 @@ for dir in skills/*/; do
   done
   echo "ok   $name"
 done
-python3 -c 'import json,sys; [json.load(open(p)) for p in sys.argv[1:]]' .claude-plugin/marketplace.json .claude-plugin/plugin.json && echo "ok   plugin manifests parse"
+python3 scripts/check-manifests.py || status=1
+# GitHub CI only: the release sync runs this script too and must not fetch Claude Code.
+if [ -n "${GITHUB_ACTIONS:-}" ] || [ -n "${CLAUDE_PLUGIN_VALIDATE:-}" ]; then
+  npx -y @anthropic-ai/claude-code@2.1.327 plugin validate . || status=1
+else
+  echo "skip claude plugin validate (set CLAUDE_PLUGIN_VALIDATE=1 to run it)"
+fi
 exit $status
