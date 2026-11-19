@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "speedscale",
-  "version": "2.5.1418",
+  "version": "2.5.1437",
   "description": "Install Speedscale end to end (CLIs, operator Helm chart, MCP wiring), record traffic with proxymock, tune the mocks and the tests, analyze replay reports, and gate changes with regression and load tests",
   "author": {
     "name": "Speedscale",

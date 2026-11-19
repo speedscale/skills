@@ -14,10 +14,15 @@ and exits 3.
 **Volatile suppression follows value patterns.** The built-in scoring ignores
 values shaped like UUIDs and timestamps (the default `regression` config does
 the same for its assertions), whatever the field is called. A value that varies
-without looking like either (a counter, a short random token) is scored. So a raw
-`bodyMismatches: 0` is not proof of a stable app: establish a `--baseline` and
-gate on NEW mismatches, which keeps the gate green on a recording whose app
-mints fresh values every run. The stricter built-in `standard` config also
+without looking like either (a counter, a short random token) is scored on an
+endpoint called once or twice. On an endpoint called three or more times, any
+field that takes more than one value is ignored, which also hides a price or
+total that depends on the request. So a raw `bodyMismatches: 0` is not proof of
+a stable app: establish a `--baseline` and gate on NEW mismatches. That keeps
+the gate green on a recording whose app mints fresh values every run, and it
+scores the ignored fields: one that changed in this run, and did not change the
+same way on any call to that endpoint the baseline replayed with a matching
+status, is a new mismatch. The stricter built-in `standard` config also
 asserts headers and cookies, so it fails more pairs on the same run.
 
 ## Blueprints: the part that silently costs you the signal

@@ -34,9 +34,13 @@ dispatcher script (`scripts/quality-loop.sh`) only builds and prints these lines
   is a new mismatch (exit 3).
 - **Volatile-value suppression follows value patterns, not field names.** The
   built-in scoring ignores values shaped like UUIDs and timestamps wherever they
-  appear, so a UUID or ISO-8601 field passes without any config. Anything else
-  that varies (a counter, a short id) is scored, and a raw `bodyMismatches: 0`
-  says little: gate against a `--baseline`.
+  appear, so a UUID or ISO-8601 field passes without any config. A field that
+  takes more than one value on an endpoint called three or more times is
+  ignored as well, so a price or total that depends on the request goes
+  unscored and a raw `bodyMismatches: 0` says little. Gate against a
+  `--baseline`: it scores those fields, and one that changed in this run, and
+  did not change the same way on any call to that endpoint the baseline
+  replayed with a matching status, is a new mismatch.
 - **Recorded-error-reproduced is a match PASS.** Match compares observed
   against recorded, so faithfully replaying a captured 500 passes. This is why
   verify-fix inverts: an all-match run means the bug still reproduces.

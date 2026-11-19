@@ -133,8 +133,14 @@ whole contract.
 - **Baseline masking compares change sets.** A pair that failed in the baseline
   is exempt from *that same failure* only; a different failure on it exits 3.
 - **Volatile-value suppression follows value patterns**, not field names: UUID
-  and timestamp values are ignored, other varying values are scored. Never trust
-  a raw `bodyMismatches: 0`; gate on NEW mismatches against a baseline.
+  and timestamp values are ignored. A field that takes more than one value on an
+  endpoint called three or more times is ignored too, which hides a price or
+  total that depends on the request. `--baseline` scores those fields: one that
+  changed in this run, and did not change the same way on any call to that
+  endpoint the baseline replayed with a matching status, is a new mismatch.
+  Never trust a raw `bodyMismatches: 0`; gate on NEW mismatches against a
+  baseline, and re-record the baseline when such a field starts gating on
+  unchanged code (a value derived from today's date, for one).
 - **An app with moving IDs needs a blueprint**, or its auth and moving-ID
   endpoints fail before and after a change and a regression there is
   undetectable. Confirm the `Loaded blueprint "<name>" from <path>` line, and

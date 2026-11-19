@@ -97,7 +97,9 @@ change sets: a pair exempt for the failure it showed against the buggy build is
 **not** exempt when it starts failing differently (verified — an identical
 failure stays masked at exit 0, a different failure on the same pair is caught
 as a new mismatch at exit 3). Volatile-value suppression follows value patterns (UUID and timestamp
-values are ignored), so gate against a baseline rather than against a raw zero. See
+values are ignored), so gate against a baseline rather than against a raw zero. A
+baseline also scores fields that vary across calls to an endpoint, which are otherwise
+ignored, so a fix that moves a price or total on a healthy pair reports as collateral. See
 proxymock-regression-test for the full measurement.
 
 ## Blueprints
